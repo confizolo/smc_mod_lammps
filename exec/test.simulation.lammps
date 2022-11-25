@@ -1,0 +1,29 @@
+variable seed1 equal 65905094
+
+units lj
+atom_style angle
+boundary p p p
+neighbor 1.6 bin
+
+pair_style  lj/cut 2.5
+bond_style hybrid fene harmonic
+angle_style cosine
+
+neigh_modify every 1 delay 1 check yes
+read_data ../data/In_conf.Nb1000.RW4.fixed.dat extra/bond/per/atom 2
+
+group temp1 type 1
+group temp2 id 1 1000
+
+group dna subtract temp1 temp2
+
+group temp1 delete
+group temp2 delete
+
+include ../data/Param.lam
+
+dump 1 all custom 1000 ../dumps/dump_with_smc.lammpstrj id type x y z 
+restart 1000 ../dumps/Restart.*
+
+run 1000000
+timestep 0.0001

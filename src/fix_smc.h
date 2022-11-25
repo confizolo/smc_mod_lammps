@@ -13,50 +13,41 @@
 
 #ifdef FIX_CLASS
 // clang-format off
-FixStyle(bond/swap,FixBondSwap);
+FixStyle(smc,FixSMC);
 // clang-format on
 #else
 
-#ifndef LMP_FIX_BONDSWAP_H
-#define LMP_FIX_BONDSWAP_H
+#ifndef LMP_FIX_SMC_H
+#define LMP_FIX_SMC_H
 
 #include "fix.h"
 
-namespace LAMMPS_NS {
+namespace LAMMPS_NS
+{
 
-class FixBondSwap : public Fix {
- public:
-  FixBondSwap(class LAMMPS *, int, char **);
-  ~FixBondSwap() override;
-  int setmask() override;
-  void init() override;
-  void init_list(int, class NeighList *) override;
-  void post_integrate() override;
-  int modify_param(int, char **) override;
-  double compute_vector(int) override;
-  double memory_usage() override;
+   class FixSMC : public Fix
+   {
+   public:
+      FixSMC(class LAMMPS *, int, char **);
+      ~FixSMC() override;
+      int setmask() override;
+      void init() override;
+      void init_list(int, class NeighList *) override;
+      void post_integrate() override;
+      double memory_usage() override;
 
- private:
-  double fraction, cutsq;
-  int nmax, tflag;
-  int *alist;
-  int naccept, foursome;
-  int angleflag;
-  char *id_temp;
-  int *type;
-  double **x;
+   private:
+      bigint anch, hing;
+      int smctype, smcbtype;
+      bool dir, active, debug;
+      int *type;
+      double **x;
+      class NeighList *list;
+      class RanMars *random;
 
-  class NeighList *list;
-  class Compute *temperature;
-  class RanMars *random;
+   };
 
-  double dist_rsq(int, int);
-  double pair_eng(int, int);
-  double bond_eng(int, int, int);
-  double angle_eng(int, int, int, int);
-};
-
-}    // namespace LAMMPS_NS
+} // namespace LAMMPS_NS
 
 #endif
 #endif
