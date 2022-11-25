@@ -61,14 +61,13 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   // initialize Marsaglia RNG with processor-unique seed
 
   int seed = utils::inumeric(FLERR,arg[4],false,lmp);
-  random = new RanMars(lmp,seed);
+  random = new RanMars(lmp,seed + comm->me);
   
   int smctype = utils::inumeric(FLERR,arg[5],false,lmp);
   if (smctype <= 0) error->all(FLERR,"Illegal fix smc command");
 
   int smcbtype = utils::inumeric(FLERR,arg[6],false,lmp);
   if (smcbtype <= 0) error->all(FLERR,"Illegal fix smc command");
-
 }
 
 /* ---------------------------------------------------------------------- */
@@ -120,32 +119,6 @@ void FixSMC::init()
   if (anch%1000 >= 995){hing = anch-5;}
   else { hing = anch+5;}
 
-  // Change type to defined hinge and anchor beads if in processor
-  for (int l = 0; l < atom->nlocal; l++)
-  {
-    if (atom->tag[l]==hing){
-      atom->type[l] = smctype;
-      // Creating new SMC bond
-      if (atom->num_bond[l] == atom->bond_per_atom) error->one(FLERR, "New bond exceeded bonds per atom limit of {} in create_bonds", atom->bond_per_atom);
-      atom->bond_type[l][atom->num_bond[l]] = smcbtype;
-      atom->bond_atom[l][atom->num_bond[l]] = anch;
-      atom->num_bond[l]++;
-    }
-    else if (atom->tag[l]==anch) {
-      atom->type[l] = smctype;
-    }
-
-  }
-
-  if (comm->me == 0 && screen) {
-    fputs("Setting up SMC Fix", screen);
-    if (debug) {
-      fmt::print(screen,"  Current anchor : {},"
-                          "  Current hinge : {}\n",
-                  anch,hing);
-    }
-  }
-  
   // Assign positive direction to SMC (hinge will move to higher tag beads)
   dir = 1;
 }
@@ -175,6 +148,29 @@ void FixSMC::post_integrate()
 
   if (update->ntimestep % nevery) return;
 
+  else if (update->ntimestep == nevery){
+
+  // Change type to defined hinge and anchor beads if in processor
+  for (int l = 0; l < atom->nlocal; l++)
+  {
+
+    if (atom->tag[l]==hing){
+      atom->type[l] = smctype;
+      // Creating new SMC bond
+      if (atom->num_bond[l] == atom->bond_per_atom) error->one(FLERR, "New bond exceeded bonds per atom limit of {} in create_bonds", atom->bond_per_atom);
+      atom->bond_type[l][atom->num_bond[l]] = smcbtype;
+      atom->bond_atom[l][atom->num_bond[l]] = anch;
+      atom->num_bond[l]++;
+    }
+    else if (atom->tag[l]==anch) {
+      atom->type[l] = smctype;
+    }
+
+  }
+    return;
+  }
+  
+  else{
   // local ptrs to atom arrays
 
   tagint *tag = atom->tag;
@@ -266,6 +262,8 @@ void FixSMC::post_integrate()
   }
 
   return;
+
+  }
 }
 
 /* ----------------------------------------------------------------------
