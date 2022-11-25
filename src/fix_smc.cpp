@@ -47,7 +47,7 @@ static const char cite_fix_smc[] =
 
 FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   Fix(lmp, narg, arg),
-  anch(0),hing(0), smctype(0), active(0), debug(1), dir(0), type(nullptr), x(nullptr), list(nullptr), random(nullptr)
+  anch(0),hing(0), smctype(0), smcbtype(0), active(0), debug(1), dir(0), type(nullptr), x(nullptr), list(nullptr), random(nullptr)
 {
   if (lmp->citeme) lmp->citeme->add(cite_fix_smc);
 
@@ -63,10 +63,10 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   int seed = utils::inumeric(FLERR,arg[4],false,lmp);
   random = new RanMars(lmp,seed + comm->me);
   
-  int smctype = utils::inumeric(FLERR,arg[5],false,lmp);
+  smctype = utils::inumeric(FLERR,arg[5],false,lmp);
   if (smctype <= 0) error->all(FLERR,"Illegal fix smc command");
 
-  int smcbtype = utils::inumeric(FLERR,arg[6],false,lmp);
+  smcbtype = utils::inumeric(FLERR,arg[6],false,lmp);
   if (smcbtype <= 0) error->all(FLERR,"Illegal fix smc command");
 }
 
@@ -141,7 +141,6 @@ void FixSMC::init_list(int /*id*/, NeighList *ptr)
 
 void FixSMC::post_integrate()
 {
-  bigint newhing = hing;
   int i,j,inum,jnum;
   int inext,ibond, ibondtype;
   int *ilist,*jlist,*numneigh,**firstneigh;
@@ -251,11 +250,9 @@ void FixSMC::post_integrate()
   MPI_Allreduce(&active,&active_any,1,MPI_INT,MPI_SUM,world);
   if (active_any) next_reneighbor = update->ntimestep;
 
-  hing=newhing;
-
   if (comm->me == 0 && screen) {
     if (debug) {
-      fmt::print(screen,"  Current anchor    : {}\n"
+      fmt::print(screen,"  Current anchor    : {}"
                           "  Current hinge  : {}\n",
                   anch,hing);
     }

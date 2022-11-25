@@ -23,7 +23,9 @@ group temp2 delete
 include ../data/Param.lam
 
 dump 1 all custom 1000 ../dumps/dump_with_smc.lammpstrj id type x y z 
-restart 1000 ../dumps/Restart.*
+
+compute 1 all property/local batom1 batom2 btype
+dump 2 all local 1000 ../dumps/bonds_with_smc.lammpstrj index c_1[1] c_1[2] c_1[3]
 
 run 1000000
 timestep 0.0001
