@@ -38,8 +38,8 @@ namespace LAMMPS_NS
 
    private:
       bigint anch, hing;
-      int smctype, smcbtype, lpol;
-      bool dir, active, debug;
+      int smctype, smcbtype, lpol, adir, hdir;
+      bool debug;
       int *type;
       double **x;
       class NeighList *list;
