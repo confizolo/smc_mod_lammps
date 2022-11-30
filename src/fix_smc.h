@@ -38,7 +38,7 @@ namespace LAMMPS_NS
 
    private:
       bigint anch, hing;
-      int smctype, smcbtype;
+      int smctype, smcbtype, lpol;
       bool dir, active, debug;
       int *type;
       double **x;

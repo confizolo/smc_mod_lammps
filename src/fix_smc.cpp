@@ -33,7 +33,7 @@
 #include "update.h"
 #include "create_bonds.h"
 #include "delete_bonds.h"
-
+#include <iostream>
 #include <cmath>
 #include <cstring>
 
@@ -51,7 +51,7 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
 {
   if (lmp->citeme) lmp->citeme->add(cite_fix_smc);
 
-  if (narg != 7) error->all(FLERR,"Illegal fix smc command");
+  if (narg != 8) error->all(FLERR,"Illegal fix smc command");
 
   nevery = utils::inumeric(FLERR,arg[3],false,lmp);
   if (nevery <= 0) error->all(FLERR,"Illegal fix smc command");
@@ -67,6 +67,9 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   if (smctype <= 0) error->all(FLERR,"Illegal fix smc command");
 
   smcbtype = utils::inumeric(FLERR,arg[6],false,lmp);
+  if (smcbtype <= 0) error->all(FLERR,"Illegal fix smc command");
+
+  lpol = utils::inumeric(FLERR,arg[7],false,lmp);
   if (smcbtype <= 0) error->all(FLERR,"Illegal fix smc command");
 }
 
@@ -110,15 +113,6 @@ void FixSMC::init()
 
   neighbor->add_request(this, NeighConst::REQ_OCCASIONAL);
 
-  //Initialize a random SMC within 5 beads of distance
-
-  // Define a random anchor position inside a monodisperse system with L=1000
-
-  anch = static_cast<int> (random->uniform() * atom->natoms);
-  
-  if (anch%1000 >= 995){hing = anch-5;}
-  else { hing = anch+5;}
-
   // Assign positive direction to SMC (hinge will move to higher tag beads)
   dir = 1;
 }
@@ -141,127 +135,92 @@ void FixSMC::init_list(int /*id*/, NeighList *ptr)
 
 void FixSMC::post_integrate()
 {
-  int i,j,inum,jnum;
-  int inext,ibond, ibondtype;
-  int *ilist,*jlist,*numneigh,**firstneigh;
+  int m;
+  int man;
 
   if (update->ntimestep % nevery) return;
 
   else if (update->ntimestep == nevery){
+  //Initialize a random SMC within 5 beads of distance
+
+  // Define a random anchor position inside a monodisperse system with L=1000
+  anch = static_cast<int> (random->uniform() * lpol);
+  
+  if (anch%lpol >= lpol-5){hing = anch-5;}
+  else { hing = anch+5;}
+  
+  const int idhi = atom->map(hing);
+  const int idan = atom->map(anch);
 
   // Change type to defined hinge and anchor beads if in processor
-  for (int l = 0; l < atom->nlocal; l++)
-  {
+  if ((m = idhi) >= 0){
 
-    if (atom->tag[l]==hing){
-      atom->type[l] = smctype;
-      // Creating new SMC bond
-      if (atom->num_bond[l] == atom->bond_per_atom) error->one(FLERR, "New bond exceeded bonds per atom limit of {} in create_bonds", atom->bond_per_atom);
-      atom->bond_type[l][atom->num_bond[l]] = smcbtype;
-      atom->bond_atom[l][atom->num_bond[l]] = anch;
-      atom->num_bond[l]++;
-    }
-    else if (atom->tag[l]==anch) {
-      atom->type[l] = smctype;
-    }
-
+    atom->type[m] = smctype;
+    // Creating new SMC bond
+    if (atom->num_bond[m] == atom->bond_per_atom) error->one(FLERR, "New bond exceeded bonds per atom limit of {} in create_bonds", atom->bond_per_atom);
+    atom->bond_type[m][atom->num_bond[m]] = smcbtype;
+    atom->bond_atom[m][atom->num_bond[m]] = anch;
+    atom->num_bond[m]++;
   }
-    return;
+  if ((man = idan) >= 0) {
+      atom->type[man] = smctype;
+  }
+  return;
   }
   
   else{
   // local ptrs to atom arrays
 
-  tagint *tag = atom->tag;
-  int *mask = atom->mask;
-  tagint *molecule = atom->molecule;
+  int mnew;
+
+  const int idnewhi = atom->map(hing+1);
+  const int idhi = atom->map(hing);
+
   int *num_bond = atom->num_bond;
   tagint **bond_atom = atom->bond_atom;
   int **bond_type = atom->bond_type;
-  int nlocal = atom->nlocal;
-  int n = -1;
 
   auto histories = modify->get_fix_by_style("BOND_HISTORY");
   int n_histories = histories.size();
 
-  type = atom->type;
-  x = atom->x;
+  if (((m = idhi) >= 0) && ((mnew = idnewhi) >= 0)){
 
-  neighbor->build_one(list,1);
-  inum = list->inum;
-  ilist = list->ilist;
-  
-  // The hinge must be inside the current processor to have a successful bond/type change
+    active=1;
 
-  int active=0;
-  for (int ii = 0; ii < inum; ii++)
-  {
-    i = ilist[ii];
-    if (tag[i]==hing) {
-      n = num_bond[i];
-      for (ibond = 0; ibond < n; ibond++) {
-        inext = atom->map(bond_atom[i][ibond]);
-        if ((bond_type[i][ibond] == 1) || (tag[inext]>hing)){
-        // The operation requires the atom to be on the same processor
-        if (inext >= nlocal || inext < 0) return;
+    atom->type[m]=1;
+    atom->type[mnew]=smctype;
 
-        active=1;
+    // Deleting old SMC bond
+    for (int ibond = 0; ibond < atom->num_bond[m]; ibond++) {
+      if (bond_type[m][ibond] == smcbtype){
+        atom->bond_type[m][ibond] = atom->bond_type[m][num_bond[m]-1];
+        atom->bond_atom[m][ibond] = atom->bond_atom[m][num_bond[m]-1];
 
-        atom->type[i]=1;
-        atom->type[inext]=smctype;
+        if (n_histories > 0)
+          for (auto &ihistory: histories) {
+            dynamic_cast<FixBondHistory *>(ihistory)->shift_history(m,ibond,atom->num_bond[m]-1);
+            dynamic_cast<FixBondHistory *>(ihistory)->delete_history(m,atom->num_bond[m]-1);
+            }
 
-        // Deleting old SMC bond
-        for (ibond = 0; ibond < n; ibond++) {
-          if (bond_type[i][ibond] == smcbtype){
-            atom->bond_type[i][ibond] = atom->bond_type[i][n-1];
-            atom->bond_atom[i][ibond] = atom->bond_atom[i][n-1];
-
-            if (n_histories > 0)
-              for (auto &ihistory: histories) {
-                dynamic_cast<FixBondHistory *>(ihistory)->shift_history(i,ibond,n-1);
-                dynamic_cast<FixBondHistory *>(ihistory)->delete_history(i,n-1);
-                }
-
-            atom->num_bond[i]--;
-            break;
-          }
-        }
-
-        // Creating new SMC bond
-        if (num_bond[inext] == atom->bond_per_atom) error->one(FLERR, "New bond exceeded bonds per atom limit of {} in create_bonds", atom->bond_per_atom);
-        bond_type[inext][num_bond[inext]] = smcbtype;
-        bond_atom[inext][num_bond[inext]] = anch;
-        num_bond[inext]++;
-
-        hing = tag[inext];
-
+        atom->num_bond[m]--;
         break;
-        }
       }
-  }
-  }
-
-  if (!active) return;
-
-
-  // trigger immediate reneighboring if a movement occurred on one or more procs
-
-  int active_any;
-  MPI_Allreduce(&active,&active_any,1,MPI_INT,MPI_SUM,world);
-  if (active_any) next_reneighbor = update->ntimestep;
-
-  if (comm->me == 0 && screen) {
-    if (debug) {
-      fmt::print(screen,"  Current anchor    : {}"
-                          "  Current hinge  : {}\n",
-                  anch,hing);
     }
+
+    // Creating new SMC bond
+    if (num_bond[mnew] == atom->bond_per_atom) error->one(FLERR, "New bond exceeded bonds per atom limit of {} in create_bonds", atom->bond_per_atom);
+    bond_type[mnew][num_bond[mnew]] = smcbtype;
+    bond_atom[mnew][num_bond[mnew]] = anch;
+    num_bond[mnew]++;
+
+    hing++;
+    }
+
+    return;
+  } 
+  
   }
 
-  return;
-
-  }
-}
 
 /* ----------------------------------------------------------------------
    memory usage of alist
