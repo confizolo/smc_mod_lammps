@@ -183,12 +183,9 @@ void FixSMC::post_integrate()
   auto histories = modify->get_fix_by_style("BOND_HISTORY");
   int n_histories = histories.size();
 
-  if (((m = idhi) >= 0) && ((mnew = idnewhi) >= 0)){
-
-    active=1;
+  if ((m = idhi) >= 0){
 
     atom->type[m]=1;
-    atom->type[mnew]=smctype;
 
     // Deleting old SMC bond
     for (int ibond = 0; ibond < atom->num_bond[m]; ibond++) {
@@ -206,6 +203,10 @@ void FixSMC::post_integrate()
         break;
       }
     }
+  }
+
+  if ((mnew = idnewhi) >= 0){
+    atom->type[mnew]=smctype;
 
     // Creating new SMC bond
     if (num_bond[mnew] == atom->bond_per_atom) error->one(FLERR, "New bond exceeded bonds per atom limit of {} in create_bonds", atom->bond_per_atom);
@@ -213,9 +214,10 @@ void FixSMC::post_integrate()
     bond_atom[mnew][num_bond[mnew]] = anch;
     num_bond[mnew]++;
 
-    hing++;
+    
     }
 
+    hing++;
     return;
   } 
   
