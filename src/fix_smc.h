@@ -39,9 +39,9 @@ namespace LAMMPS_NS
    private:
       bigint anch, hing;
       int smctype, smcbtype, lpol, adir, hdir;
+      double prob;
+      double *xyzanch, *xyzhing;
       bool debug;
-      int *type;
-      double **x;
       class NeighList *list;
       class RanMars *random;
 

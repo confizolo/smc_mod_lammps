@@ -47,38 +47,42 @@ static const char cite_fix_smc[] =
 
 FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   Fix(lmp, narg, arg),
-  anch(0),hing(0), smctype(0), smcbtype(0), debug(1), type(nullptr), x(nullptr), list(nullptr), random(nullptr)
+  anch(0),hing(0), smctype(0), smcbtype(0), debug(1), list(nullptr), random(nullptr)
 {
   if (lmp->citeme) lmp->citeme->add(cite_fix_smc);
 
-  if (narg != 10) error->all(FLERR,"Illegal fix smc command");
+  if (narg != 11) error->all(FLERR,"Illegal fix smc command");
 
   nevery = utils::inumeric(FLERR,arg[3],false,lmp);
   if (nevery <= 0) error->all(FLERR,"Illegal fix smc command");
 
   next_reneighbor = -1;
 
-  // initialize Marsaglia RNG with processor-unique seed
 
   int seed = utils::inumeric(FLERR,arg[4],false,lmp);
-  random = new RanMars(lmp,seed + comm->me);
+  random = new RanMars(lmp,seed);
   
-  lpol = utils::inumeric(FLERR,arg[5],false,lmp);
+  prob = utils::numeric(FLERR, arg[5], false, lmp);
+  if (prob < 0.0 || prob > 1.0)
+            error->all(FLERR, "Illegal fix topo2 command");
+
+  lpol = utils::inumeric(FLERR,arg[6],false,lmp);
   if (lpol <= 0) error->all(FLERR,"Illegal fix smc command");
 
-  adir = utils::inumeric(FLERR,arg[6],false,lmp);
+  adir = utils::inumeric(FLERR,arg[7],false,lmp);
   if (!((adir == 1) || (adir == -1) || (adir ==0))) error->all(FLERR,"Illegal fix smc command");
 
-  hdir = utils::inumeric(FLERR,arg[7],false,lmp);
+  hdir = utils::inumeric(FLERR,arg[8],false,lmp);
   if (!((hdir == 1) || (hdir== -1) || (hdir ==0))) error->all(FLERR,"Illegal fix smc command");
 
-  smctype = utils::inumeric(FLERR,arg[8],false,lmp);
+  smctype = utils::inumeric(FLERR,arg[9],false,lmp);
   if (smctype <= 0) error->all(FLERR,"Illegal fix smc command");
 
-  smcbtype = utils::inumeric(FLERR,arg[9],false,lmp);
+  smcbtype = utils::inumeric(FLERR,arg[10],false,lmp);
   if (smcbtype <= 0) error->all(FLERR,"Illegal fix smc command");
 
-
+  xyzanch = nullptr;
+  xyzhing = nullptr;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -152,7 +156,7 @@ void FixSMC::post_integrate()
   // Define a random anchor position inside a monodisperse system with L=1000
   anch = static_cast<int> (random->uniform() * lpol);
     
-  hing = anch + 5*hdir;
+  hing = anch + 20*hdir;
   
   const int idhi = atom->map(hing);
   const int idan = atom->map(anch);
@@ -175,6 +179,8 @@ void FixSMC::post_integrate()
   
   else{
 
+  if (random->uniform() > prob) return;
+  
   // Check if we are going to the polymer border
   if ((hing + hdir)%lpol == 0) hdir = 0;  
   if ((anch + adir)%lpol == 0) adir = 0;  
@@ -187,6 +193,77 @@ void FixSMC::post_integrate()
   const int idhi = atom->map(hing);
   const int idnewan = atom->map(anch+adir);
   const int idan = atom->map(anch);
+
+  double *xyzanchtemp = nullptr;
+  double *xyzhingtemp = nullptr;
+
+  int *anchcount= nullptr;
+  int *hingcount= nullptr;
+
+  memory->destroy(xyzanchtemp);
+  memory->create(xyzanchtemp,3,"FixSMC::post_integrate()");
+  memory->destroy(xyzhingtemp);
+  memory->create(xyzhingtemp,3,"FixSMC::post_integrate()");
+  memory->destroy(anchcount);
+  memory->create(anchcount,1,"FixSMC::post_integrate()");
+  memory->destroy(hingcount);
+  memory->create(hingcount,1,"FixSMC::post_integrate()");
+
+  xyzanchtemp[0] = 0;
+  xyzanchtemp[1] = 0;
+  xyzanchtemp[2] = 0;
+
+  xyzhingtemp[0] = 0;
+  xyzhingtemp[1] = 0;
+  xyzhingtemp[2] = 0;
+
+  memory->destroy(xyzanch);
+  memory->create(xyzanch,3,"FixSMC::post_integrate()");
+  memory->destroy(xyzhing);
+  memory->create(xyzhing,3,"FixSMC::post_integrate()");
+  
+  double unwrap[3];
+
+
+  if (((mannew = idnewan) >= 0)){
+    domain->unmap(atom->x[mannew], atom->image[mannew], unwrap);
+    xyzanchtemp[0] += unwrap[0];
+    xyzanchtemp[1] += unwrap[1];
+    xyzanchtemp[2] += unwrap[2];
+    anchcount[0]++;
+  }
+
+  if (((mnew = idnewhi) >= 0)){
+    domain->unmap(atom->x[mnew], atom->image[mnew], unwrap);
+
+    xyzhingtemp[0] += unwrap[0];
+    xyzhingtemp[1] += unwrap[1];
+    xyzhingtemp[2] += unwrap[2];
+    hingcount[0]++;
+  } 
+
+  int* hingcounts = nullptr;
+  int* anchcounts = nullptr;
+
+  memory->destroy(anchcounts);
+  memory->create(anchcounts,1,"FixSMC::post_integrate()");
+  memory->destroy(hingcounts);
+  memory->create(hingcounts,1,"FixSMC::post_integrate()");
+
+  MPI_Allreduce(xyzanchtemp, xyzanch, 3, MPI_DOUBLE, MPI_SUM, world);
+  MPI_Allreduce(xyzhingtemp, xyzhing, 3, MPI_DOUBLE, MPI_SUM, world);
+  MPI_Allreduce(anchcount, anchcounts, 1, MPI_DOUBLE, MPI_SUM, world);
+  MPI_Allreduce(hingcount, hingcounts, 1, MPI_DOUBLE, MPI_SUM, world);
+
+  double dist = 0;
+
+  for (int k=0; k<3 ; k++){
+    xyzanch[k] = xyzanch[k]/anchcounts[0];
+    xyzhing[k] = xyzhing[k]/hingcounts[0];
+    dist += (xyzanch[k]-xyzhing[k])*(xyzanch[k]-xyzhing[k]);
+  }
+
+  if (dist > 1.5*1.5) return;
 
   int *num_bond = atom->num_bond;
   tagint **bond_atom = atom->bond_atom;
@@ -238,6 +315,12 @@ void FixSMC::post_integrate()
 
     anch+=adir;
     hing+=hdir;
+
+    memory->destroy(xyzanch);
+    memory->destroy(xyzhing);
+    memory->destroy(xyzanchtemp);
+    memory->destroy(xyzhingtemp);
+
     return;
   } 
   
