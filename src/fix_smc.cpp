@@ -85,6 +85,9 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   if (cutoff <0)
             error->all(FLERR, "Illegal fix topo2 command");
 
+  // To get a different random number every time the program is executed
+  srand(time(NULL) * seed);
+  
   xyzanch = nullptr;
   xyzhing = nullptr;
 }
@@ -94,6 +97,9 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
 FixSMC::~FixSMC()
 {
   delete random;
+  memory->destroy(xyzanch);
+  memory->destroy(xyzhing);
+  memory->destroy(list);
 
 }
 
@@ -111,27 +117,12 @@ int FixSMC::setmask()
 void FixSMC::init()
 {
 
-  // pair and bonds must be defined
-  // no dihedral or improper potentials allowed
-  // special bonds must be 0 1 1
 
   if (force->pair == nullptr || force->bond == nullptr)
     error->all(FLERR,"Fix smc requires pair and bond styles");
 
-  if (force->pair->single_enable == 0)
-    error->all(FLERR,"Pair style does not support fix smc");
-
-  if (force->angle == nullptr && atom->nangles > 0 && comm->me == 0)
-    error->warning(FLERR,"Fix smc will not preserve correct angle "
-                   "topology because no angle_style is defined");
-
-  // need a half neighbor list, built every Nevery steps
-
-  neighbor->add_request(this, NeighConst::REQ_OCCASIONAL);
-
 }
 
-/* ---------------------------------------------------------------------- */
 
 void FixSMC::init_list(int /*id*/, NeighList *ptr)
 {
@@ -139,12 +130,7 @@ void FixSMC::init_list(int /*id*/, NeighList *ptr)
 }
 
 /* ----------------------------------------------------------------------
-   look for and perform swaps
-   NOTE: used to do this every pre_neighbor(), but think that is a bug
-         b/c was doing it after exchange() and before neighbor->build()
-         which is when neigh lists are actually out-of-date or even bogus,
-         now do it based on user-specified Nevery, and trigger reneigh
-         if any swaps performed, like fix bond/create
+
 ------------------------------------------------------------------------- */
 
 void FixSMC::post_integrate()
@@ -324,6 +310,10 @@ void FixSMC::post_integrate()
     memory->destroy(xyzhing);
     memory->destroy(xyzanchtemp);
     memory->destroy(xyzhingtemp);
+    memory->destroy(anchcount);
+    memory->destroy(hingcount);
+    memory->destroy(hingcounts);
+    memory->destroy(anchcounts);
 
     return;
   } 
@@ -341,4 +331,37 @@ double FixSMC::memory_usage()
   return bytes;
 }
 
+
+/***********************************************************************/
+/* Needed to write a restart file that can continue with the simulation*/
+/***********************************************************************/
+void FixSMC::write_restart(FILE *fp)
+{
+    int n = 0;
+    double list[2];
+    list[n++] = ubuf(next_reneighbor).d;
+    list[n++] = ubuf(update->ntimestep).d;
+
+    if (comm->me == 0)
+    {
+        int size = n * sizeof(double);
+        fwrite(&size, sizeof(int), 1, fp);
+        fwrite(list, sizeof(double), n, fp);
+    }
+}
+
+/* ----------------------------------------------------------------------
+   use state info from restart file to restart the Fix
+------------------------------------------------------------------------- */
+void FixSMC::restart(char *buf)
+{
+    int n = 0;
+    double *list = (double *)buf;
+
+    next_reneighbor = (bigint)ubuf(list[n++]).i;
+
+    bigint ntimestep_restart = (bigint)ubuf(list[n++]).i;
+    if (ntimestep_restart != update->ntimestep)
+        error->all(FLERR, "Must not reset timestep when restarting fix smc");
+}
 

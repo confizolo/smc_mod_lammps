@@ -35,11 +35,13 @@ namespace LAMMPS_NS
       void init_list(int, class NeighList *) override;
       void post_integrate() override;
       double memory_usage() override;
+      void write_restart(FILE *fp) override;
+      void restart(char *) override;
 
    private:
       bigint anch, hing;
       int smctype, smcbtype, lpol, adir, hdir;
-      double prob;
+      double prob,cutoff;
       double *xyzanch, *xyzhing;
       bool debug;
       class NeighList *list;
