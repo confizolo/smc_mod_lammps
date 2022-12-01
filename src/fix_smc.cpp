@@ -51,7 +51,7 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
 {
   if (lmp->citeme) lmp->citeme->add(cite_fix_smc);
 
-  if (narg != 11) error->all(FLERR,"Illegal fix smc command");
+  if (narg != 12) error->all(FLERR,"Illegal fix smc command");
 
   nevery = utils::inumeric(FLERR,arg[3],false,lmp);
   if (nevery <= 0) error->all(FLERR,"Illegal fix smc command");
@@ -80,6 +80,10 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
 
   smcbtype = utils::inumeric(FLERR,arg[10],false,lmp);
   if (smcbtype <= 0) error->all(FLERR,"Illegal fix smc command");
+
+  cutoff = utils::numeric(FLERR, arg[11], false, lmp);
+  if (cutoff <0)
+            error->all(FLERR, "Illegal fix topo2 command");
 
   xyzanch = nullptr;
   xyzhing = nullptr;
@@ -263,7 +267,7 @@ void FixSMC::post_integrate()
     dist += (xyzanch[k]-xyzhing[k])*(xyzanch[k]-xyzhing[k]);
   }
 
-  if (dist > 1.5*1.5) return;
+  if (dist > cutoff*cutoff) return;
 
   int *num_bond = atom->num_bond;
   tagint **bond_atom = atom->bond_atom;
