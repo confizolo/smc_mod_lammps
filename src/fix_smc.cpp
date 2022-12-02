@@ -205,7 +205,7 @@ void FixSMC::post_integrate()
 
   anchcount[0] = 0;
   hingcount[0] = 0;
-  
+
   xyzanchtemp[0] = 0;
   xyzanchtemp[1] = 0;
   xyzanchtemp[2] = 0;
@@ -261,7 +261,7 @@ void FixSMC::post_integrate()
   }
   if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Number of counts is " + std::to_string(anchcounts[0]) + " Anchor " + std::to_string(hingcounts[0]) + " Hinge " + "\n");
   if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Proposed distance is " + std::to_string(sqrt(dist)) + "\n");
-  if (dist > cutoff*cutoff) return;
+  if (dist > cutoff*cutoff || (anchcounts[0]==0) || (hingcounts[0]==0)) return;
 
   int *num_bond = atom->num_bond;
   tagint **bond_atom = atom->bond_atom;
