@@ -203,6 +203,9 @@ void FixSMC::post_integrate()
   memory->destroy(hingcount);
   memory->create(hingcount,1,"FixSMC::post_integrate()");
 
+  anchcount[0] = 0;
+  hingcount[0] = 0;
+  
   xyzanchtemp[0] = 0;
   xyzanchtemp[1] = 0;
   xyzanchtemp[2] = 0;
