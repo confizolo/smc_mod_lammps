@@ -51,7 +51,7 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
 {
   if (lmp->citeme) lmp->citeme->add(cite_fix_smc);
 
-  if (narg != 12) error->all(FLERR,"Illegal fix smc command");
+  if (narg != 13) error->all(FLERR,"Illegal fix smc command");
 
   nevery = utils::inumeric(FLERR,arg[3],false,lmp);
   if (nevery <= 0) error->all(FLERR,"Illegal fix smc command");
@@ -70,10 +70,9 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   if (lpol <= 0) error->all(FLERR,"Illegal fix smc command");
 
   adir = utils::inumeric(FLERR,arg[7],false,lmp);
-  if (!((adir == 1) || (adir == -1) || (adir ==0))) error->all(FLERR,"Illegal fix smc command");
 
   hdir = utils::inumeric(FLERR,arg[8],false,lmp);
-  if (!((hdir == 1) || (hdir== -1) || (hdir ==0))) error->all(FLERR,"Illegal fix smc command");
+  if (hdir*adir >= 0) error->all(FLERR,"Illegal fix smc command, hinge and must not have same direction");
 
   smctype = utils::inumeric(FLERR,arg[9],false,lmp);
   if (smctype <= 0) error->all(FLERR,"Illegal fix smc command");
@@ -81,7 +80,10 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   smcbtype = utils::inumeric(FLERR,arg[10],false,lmp);
   if (smcbtype <= 0) error->all(FLERR,"Illegal fix smc command");
 
-  cutoff = utils::numeric(FLERR, arg[11], false, lmp);
+  smcbitype = utils::inumeric(FLERR,arg[11],false,lmp);
+  if (smcbitype <= 0) error->all(FLERR,"Illegal fix smc command");
+
+  cutoff = utils::numeric(FLERR, arg[12], false, lmp);
   if (cutoff <0)
             error->all(FLERR, "Illegal fix topo2 command");
 
@@ -146,8 +148,9 @@ void FixSMC::post_integrate()
   // Define a random anchor position inside a monodisperse system with L=1000
   anch = static_cast<int> (random->uniform() * lpol);
     
-  hing = anch + 20*hdir;
-  
+  if (hdir!=0) hing = anch + hdir;
+  else hing = anch - adir;
+
   const int idhi = atom->map(hing);
   const int idan = atom->map(anch);
 
@@ -157,7 +160,7 @@ void FixSMC::post_integrate()
     atom->type[m] = smctype;
     // Creating new SMC bond
     if (atom->num_bond[m] == atom->bond_per_atom) error->one(FLERR, "New bond exceeded bonds per atom limit of {} in create_bonds", atom->bond_per_atom);
-    atom->bond_type[m][atom->num_bond[m]] = smcbtype;
+    atom->bond_type[m][atom->num_bond[m]] = smcbitype;
     atom->bond_atom[m][atom->num_bond[m]] = anch;
     atom->num_bond[m]++;
   }
@@ -268,7 +271,7 @@ void FixSMC::post_integrate()
 
     // Deleting old SMC bond
     for (int ibond = 0; ibond < atom->num_bond[m]; ibond++) {
-      if (bond_type[m][ibond] == smcbtype){
+      if ((bond_type[m][ibond] == smcbtype) || (bond_type[m][ibond] == smcbitype)){
         atom->bond_type[m][ibond] = atom->bond_type[m][num_bond[m]-1];
         atom->bond_atom[m][ibond] = atom->bond_atom[m][num_bond[m]-1];
 

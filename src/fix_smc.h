@@ -40,7 +40,7 @@ namespace LAMMPS_NS
 
    private:
       bigint anch, hing;
-      int smctype, smcbtype, lpol, adir, hdir;
+      int smctype, smcbtype, smcbitype, lpol, adir, hdir;
       double prob,cutoff;
       double *xyzanch, *xyzhing;
       bool debug;
