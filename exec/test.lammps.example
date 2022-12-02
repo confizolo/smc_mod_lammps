@@ -58,7 +58,7 @@ variable rate equal 1000
 ######################################
 fix 1 dna   nve
 fix 2 all  langevin   1.0 1.0   1.0  ${seed2}
-#fix 3 all smc ${rate} 234224 ${prob} ${lpol} -1 1 2 3 2 ${cutoff}
+fix 3 all smc ${rate} 234224 ${prob} ${lpol} -1 1 2 3 2 ${cutoff}
 
 ######################
 #### CUSTOM INFO #####

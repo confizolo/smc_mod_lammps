@@ -148,8 +148,8 @@ void FixSMC::post_integrate()
   // Define a random anchor position inside a monodisperse system with L=1000
   anch = static_cast<int> (random->uniform() * lpol);
     
-  if (hdir!=0) hing = anch + hdir;
-  else hing = anch - adir;
+  if (hdir!=0) hing = anch + 2*hdir/abs(hdir);
+  else hing = anch - 2*adir/abs(adir);
 
   const int idhi = atom->map(hing);
   const int idan = atom->map(anch);
