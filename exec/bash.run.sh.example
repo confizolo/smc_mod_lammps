@@ -17,9 +17,4 @@ ncpu=4
 
 cwd=`pwd`
  
-#   r1=$(od -An -N2 -i /dev/urandom)
-#   r2=$(od -An -N2 -i /dev/urandom)
-#   echo "variable seedthermo0 equal ${r1}" >  parameters.dat
-#   echo "variable seedthermo  equal ${r2}" >> parameters.dat
-  
-${LAMMPSparallel} -in ${lscript}
+mpirun -np ${ncpu} ${LAMMPSparallel} -in ${lscript} 1> /dev/null

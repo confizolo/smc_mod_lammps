@@ -1,4 +1,5 @@
 variable seed1 equal 65905094
+variable seed2 equal 9833498
 
 units lj
 atom_style angle
@@ -12,20 +13,57 @@ angle_style cosine
 neigh_modify every 1 delay 1 check yes
 read_data ../data/In_conf.Nb1000.RW4.fixed.dat extra/bond/per/atom 2
 
-group temp1 type 1
-group temp2 id 1 1000
+####################################
+####	GROUPS	             #######
+####################################
 
-group dna subtract temp1 temp2
+group dna type 1
+group all type 1 2 3
 
-group temp1 delete
-group temp2 delete
+#1 = dna
+#2 = smc ends
 
-include ../data/Param.lam
+####################################
+####    PAIR INTERACTIONS    #######
+####################################
+pair_style   lj/cut 1.12246
+pair_modify  shift yes
+pair_coeff   * * 1.0 1.0 1.12246
 
-dump 1 all custom 1000 ../dumps/dump_with_smc.lammpstrj id type x y z 
+####################################
+####    FENE BONDS           #######
+####################################
+bond_style hybrid fene harmonic
+special_bonds fene
+bond_coeff   1 fene  30.0   1.5  1.0  1.0
+bond_coeff   2 fene  20.0   1.5  1.0  1.0
+bond_coeff   3 harmonic 10 1.5
+
+####################################
+####    ANGLES                #######
+####################################
+angle_style cosine
+angle_coeff 1 20
+
+######################################
+# INTEGRATION OF Equations of motion #
+######################################
+fix 1 dna   nve
+fix 2 all  langevin   1.0 1.0   1.0  ${seed2}
+#fix 3 all smc ${rate} 234224 ${prob} ${lpol} -1 1 2 3 2 ${cutoff}
+
+######################
+#### CUSTOM INFO #####
+######################
+thermo 10000
+thermo_style   custom   step  temp  epair vol cpu
+timestep 0.01
+reset_timestep 0
+
+dump 1 all custom 1000 ../dumps/test1_prob${prob}_rate${rate}_cutoff${cutoff}_dump_parallel.lammpstrj id type x y z 
 
 compute 1 all property/local batom1 batom2 btype
-dump 2 all local 1000 ../dumps/bonds_with_smc.lammpstrj index c_1[1] c_1[2] c_1[3]
+dump 2 all local 1000 ../dumps/test1_prob${prob}_rate${rate}_cutoff${cutoff}_bond_parallel.lammpstrj index c_1[1] c_1[2] c_1[3]
 
-run 1000000
+run 100000
 timestep 0.0001
