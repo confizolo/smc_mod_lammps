@@ -36,6 +36,7 @@
 #include <iostream>
 #include <cmath>
 #include <cstring>
+#include <utils.h>
 
 using namespace LAMMPS_NS;
 using namespace FixConst;
@@ -47,7 +48,7 @@ static const char cite_fix_smc[] =
 
 FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   Fix(lmp, narg, arg),
-  anch(0),hing(0), smctype(0), smcbtype(0), debug(1), list(nullptr), random(nullptr)
+  anch(0),hing(0), smctype(0), smcbtype(0), debug(0), list(nullptr), random(nullptr)
 {
   if (lmp->citeme) lmp->citeme->add(cite_fix_smc);
 
@@ -218,7 +219,7 @@ void FixSMC::post_integrate()
   double unwrap[3];
 
 
-  if (((mannew = idnewan) >= 0)){
+  if (((mannew = idnewan) >= 0) && (idnewan<(atom->nlocal))){
     domain->unmap(atom->x[mannew], atom->image[mannew], unwrap);
     xyzanchtemp[0] += unwrap[0];
     xyzanchtemp[1] += unwrap[1];
@@ -226,7 +227,7 @@ void FixSMC::post_integrate()
     anchcount[0]++;
   }
 
-  if (((mnew = idnewhi) >= 0)){
+  if (((mnew = idnewhi) >= 0) && (idnewhi<(atom->nlocal))){
     domain->unmap(atom->x[mnew], atom->image[mnew], unwrap);
 
     xyzhingtemp[0] += unwrap[0];
@@ -255,7 +256,8 @@ void FixSMC::post_integrate()
     xyzhing[k] = xyzhing[k]/hingcounts[0];
     dist += (xyzanch[k]-xyzhing[k])*(xyzanch[k]-xyzhing[k]);
   }
-
+  if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Number of counts is " + std::to_string(anchcounts[0]) + " Anchor " + std::to_string(hingcounts[0]) + " Hinge " + "\n");
+  if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Proposed distance is " + std::to_string(sqrt(dist)) + "\n");
   if (dist > cutoff*cutoff) return;
 
   int *num_bond = atom->num_bond;
