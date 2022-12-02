@@ -11,10 +11,10 @@
 LAMMPS=""
 LAMMPSparallel="/Users/s2469797/Documents/lammps_testing/build/lmp"
 
-lscript="test.simulation.lammps"
+lscript="test.lammps"
 
 ncpu=4
 
 cwd=`pwd`
  
-mpirun -np ${ncpu} ${LAMMPSparallel} -in ${lscript} 1> /dev/null
+mpirun -np ${ncpu} ${LAMMPSparallel} -in ${lscript} 

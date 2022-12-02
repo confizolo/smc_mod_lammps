@@ -45,6 +45,14 @@ bond_coeff   3 harmonic 10 1.5
 angle_style cosine
 angle_coeff 1 20
 
+#########################
+#### SMC PARAMETERS #####
+#########################
+variable prob equal 1
+variable lpol equal 1000
+variable cutoff equal 1.5
+variable rate equal 1000
+
 ######################################
 # INTEGRATION OF Equations of motion #
 ######################################
@@ -59,6 +67,7 @@ thermo 10000
 thermo_style   custom   step  temp  epair vol cpu
 timestep 0.01
 reset_timestep 0
+
 
 dump 1 all custom 1000 ../dumps/test1_prob${prob}_rate${rate}_cutoff${cutoff}_dump_parallel.lammpstrj id type x y z 
 
