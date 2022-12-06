@@ -112,10 +112,12 @@ FixSMC::~FixSMC()
   auto histories = modify->get_fix_by_style("BOND_HISTORY");
   int n_histories = histories.size();
 
+  int idhi;
+  int idan;
   for (int i = 0; i < smcnum; i++)
   {
-    const int idhi = atom->map(hing[i]);
-    const int idan = atom->map(anch[i]);
+    idhi = atom->map(hing[i]);
+    idan = atom->map(anch[i]);
 
     if (((m = idhi) >= 0) && (hdir!=0)){
 
