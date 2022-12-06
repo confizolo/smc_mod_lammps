@@ -99,6 +99,41 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
 
 FixSMC::~FixSMC()
 {
+  int m;
+  int man;
+
+  auto histories = modify->get_fix_by_style("BOND_HISTORY");
+  int n_histories = histories.size();
+
+  const int idhi = atom->map(hing);
+  const int idan = atom->map(anch);
+
+  if (((m = idhi) >= 0) && (hdir!=0)){
+
+    atom->type[m]=1;
+
+    // Deleting old SMC bond
+    for (int ibond = 0; ibond < atom->num_bond[m]; ibond++) {
+      if ((atom->bond_type[m][ibond] == smcbtype) || (atom->bond_type[m][ibond] == smcbitype)){
+        atom->bond_type[m][ibond] = atom->bond_type[m][atom->num_bond[m]-1];
+        atom->bond_atom[m][ibond] = atom->bond_atom[m][atom->num_bond[m]-1];
+
+        if (n_histories > 0)
+          for (auto &ihistory: histories) {
+            dynamic_cast<FixBondHistory *>(ihistory)->shift_history(m,ibond,atom->num_bond[m]-1);
+            dynamic_cast<FixBondHistory *>(ihistory)->delete_history(m,atom->num_bond[m]-1);
+            }
+
+        atom->num_bond[m]--;
+        break;
+      }
+    }
+  }
+
+  if ((man = idan) >= 0) {
+      atom->type[man] = 1;
+  }
+
   delete random;
   memory->destroy(xyzanch);
   memory->destroy(xyzhing);
@@ -346,9 +381,11 @@ double FixSMC::memory_usage()
 void FixSMC::write_restart(FILE *fp)
 {
     int n = 0;
-    double list[2];
+    double list[4];
     list[n++] = ubuf(next_reneighbor).d;
     list[n++] = ubuf(update->ntimestep).d;
+    list[n++] = ubuf(anch).d;
+    list[n++] = ubuf(hing).d;
 
     if (comm->me == 0)
     {
@@ -371,5 +408,10 @@ void FixSMC::restart(char *buf)
     bigint ntimestep_restart = (bigint)ubuf(list[n++]).i;
     if (ntimestep_restart != update->ntimestep)
         error->all(FLERR, "Must not reset timestep when restarting fix smc");
+
+    anch = (bigint)ubuf(list[n++]).i;
+
+    hing = (bigint)ubuf(list[n++]).i;
+
 }
 

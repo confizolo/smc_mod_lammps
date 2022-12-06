@@ -1,5 +1,5 @@
 variable seed1 equal 65905094
-variable seed2 equal 9833498
+variable seed2 equal 249184
 
 units lj
 atom_style angle
@@ -35,9 +35,9 @@ pair_coeff   * * 1.0 1.0 1.12246
 ####################################
 bond_style hybrid fene harmonic
 special_bonds fene
-bond_coeff   1 fene  30.0   1.5  1.0  1.0
-bond_coeff   2 fene  20.0   1.5  1.0  1.0
-bond_coeff   3 harmonic 10 1.5
+bond_coeff   1 fene  30.0   1.6  1.0  1.0
+bond_coeff   2 harmonic 100 1.1
+bond_coeff   3 fene  20.0   1.6  1.0  1.0
 
 ####################################
 ####    ANGLES                #######
@@ -50,7 +50,7 @@ angle_coeff 1 20
 #########################
 variable prob equal 1
 variable lpol equal 1000
-variable cutoff equal 1.5
+variable cutoff equal 1.6
 variable rate equal 1000
 
 ######################################
@@ -75,4 +75,8 @@ compute 1 all property/local batom1 batom2 btype
 dump 2 all local 1000 ../dumps/test1_prob${prob}_rate${rate}_cutoff${cutoff}_bond_parallel.lammpstrj index c_1[1] c_1[2] c_1[3]
 
 run 100000
-timestep 0.0001
+
+unfix 3 
+
+run 100000
+
