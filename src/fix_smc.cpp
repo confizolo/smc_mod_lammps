@@ -197,6 +197,11 @@ void FixSMC::post_integrate()
   //Initialize a random SMC within 5 beads of distance
 
   int i=0;
+  bool flag=0;
+
+  int idhi;
+  int idan;
+  
   // Define a random anchor position inside a monodisperse system with L=1000
   while (i<smcnum)
   { 
@@ -205,16 +210,17 @@ void FixSMC::post_integrate()
     if (hdir!=0) hing[i] = anch[i] + 2*hdir/abs(hdir);
     else hing[i] = anch[i] - 2*adir/abs(adir);
 
-    int j;
-    for (j = 0; j < i; j++)
+    flag =0;
+    for (int j = 0; j < i; j++)
     {
       if(((anch[i]==anch[j])||(hing[i]==hing[j])) || ((anch[i]==hing[j])||(hing[i]==anch[j]))){break;}
+      flag =1;
     }
     
-    if(((anch[i]==anch[j])||(hing[i]==hing[j])) || ((anch[i]==hing[j])||(hing[i]==anch[j]))){continue;}
+    if(flag){continue;}
 
-    const int idhi = atom->map(hing[i]);
-    const int idan = atom->map(anch[i]);
+    idhi = atom->map(hing[i]);
+    idan = atom->map(anch[i]);
 
     // Change type to defined hinge and anchor beads if in processor
     if ((m = idhi) >= 0){
@@ -260,6 +266,11 @@ void FixSMC::post_integrate()
   auto histories = modify->get_fix_by_style("BOND_HISTORY");
   int n_histories = histories.size();
 
+  int idnewhi;
+  int idhi;
+  int idnewan;
+  int idan; 
+
   for (int i = 0; i < smcnum; i++)
   {
       
@@ -272,10 +283,10 @@ void FixSMC::post_integrate()
       if((((anch[i]+adir)==anch[j])||((hing[i]+hdir)==hing[j])) || (((anch[i]+adir)==hing[j])||((hing[i]+hdir)==anch[j]))){return;}
     }
 
-    const int idnewhi = atom->map(hing[i]+hdir);
-    const int idhi = atom->map(hing[i]);
-    const int idnewan = atom->map(anch[i]+adir);
-    const int idan = atom->map(anch[i]);
+    idnewhi = atom->map(hing[i]+hdir);
+    idhi = atom->map(hing[i]);
+    idnewan = atom->map(anch[i]+adir);
+    idan = atom->map(anch[i]);
 
     memory->destroy(xyzanchtemp);
     memory->create(xyzanchtemp,3,"FixSMC::post_integrate()");
