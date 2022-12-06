@@ -214,7 +214,8 @@ void FixSMC::post_integrate()
   if ((hing + hdir)%lpol == 0) hdir = 0;  
   if ((anch + adir)%lpol == 0) adir = 0;  
 
-
+  if ((hdir==0) && (adir==0)) return;
+  
   int mnew;
   int mannew;
 
