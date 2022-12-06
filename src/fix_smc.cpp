@@ -283,10 +283,12 @@ void FixSMC::post_integrate()
   memory->destroy(hingcounts);
   memory->create(hingcounts,1,"FixSMC::post_integrate()");
 
+  MPI_Barrier(world);
+
   MPI_Allreduce(xyzanchtemp, xyzanch, 3, MPI_DOUBLE, MPI_SUM, world);
   MPI_Allreduce(xyzhingtemp, xyzhing, 3, MPI_DOUBLE, MPI_SUM, world);
-  MPI_Allreduce(anchcount, anchcounts, 1, MPI_DOUBLE, MPI_SUM, world);
-  MPI_Allreduce(hingcount, hingcounts, 1, MPI_DOUBLE, MPI_SUM, world);
+  MPI_Allreduce(anchcount, anchcounts, 1, MPI_INT, MPI_SUM, world);
+  MPI_Allreduce(hingcount, hingcounts, 1, MPI_INT, MPI_SUM, world);
 
   double dist = 0;
 
