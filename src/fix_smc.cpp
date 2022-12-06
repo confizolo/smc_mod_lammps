@@ -48,11 +48,11 @@ static const char cite_fix_smc[] =
 
 FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   Fix(lmp, narg, arg),
-  anch(0),hing(0), smctype(0), smcbtype(0), debug(1), list(nullptr), random(nullptr)
+  anch(nullptr),hing(nullptr), smctype(0), smcbtype(0), smcnum(0), debug(1), list(nullptr), random(nullptr)
 {
   if (lmp->citeme) lmp->citeme->add(cite_fix_smc);
 
-  if (narg != 13) error->all(FLERR,"Illegal fix smc command");
+  if (narg != 14) error->all(FLERR,"Illegal fix smc command");
 
   nevery = utils::inumeric(FLERR,arg[3],false,lmp);
   if (nevery <= 0) error->all(FLERR,"Illegal fix smc command");
@@ -75,16 +75,19 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   hdir = utils::inumeric(FLERR,arg[8],false,lmp);
   if (hdir*adir >= 0) error->all(FLERR,"Illegal fix smc command, hinge and must not have same direction");
 
-  smctype = utils::inumeric(FLERR,arg[9],false,lmp);
+  smcnum = utils::inumeric(FLERR,arg[9],false,lmp);
+  if (smcnum <= 0) error->all(FLERR,"Illegal fix smc command");
+
+  smctype = utils::inumeric(FLERR,arg[10],false,lmp);
   if (smctype <= 0) error->all(FLERR,"Illegal fix smc command");
 
-  smcbtype = utils::inumeric(FLERR,arg[10],false,lmp);
+  smcbtype = utils::inumeric(FLERR,arg[11],false,lmp);
   if (smcbtype <= 0) error->all(FLERR,"Illegal fix smc command");
 
-  smcbitype = utils::inumeric(FLERR,arg[11],false,lmp);
+  smcbitype = utils::inumeric(FLERR,arg[12],false,lmp);
   if (smcbitype <= 0) error->all(FLERR,"Illegal fix smc command");
 
-  cutoff = utils::numeric(FLERR, arg[12], false, lmp);
+  cutoff = utils::numeric(FLERR, arg[13], false, lmp);
   if (cutoff <0)
             error->all(FLERR, "Illegal fix topo2 command");
 
@@ -93,6 +96,9 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   
   xyzanch = nullptr;
   xyzhing = nullptr;
+
+  anch = new bigint[smcnum];
+  hing = new bigint[smcnum];
 
 }
 
@@ -106,39 +112,47 @@ FixSMC::~FixSMC()
   auto histories = modify->get_fix_by_style("BOND_HISTORY");
   int n_histories = histories.size();
 
-  const int idhi = atom->map(hing);
-  const int idan = atom->map(anch);
+  for (int i = 0; i < smcnum; i++)
+  {
+    const int idhi = atom->map(hing[i]);
+    const int idan = atom->map(anch[i]);
 
-  if (((m = idhi) >= 0) && (hdir!=0)){
+    if (((m = idhi) >= 0) && (hdir!=0)){
 
-    atom->type[m]=1;
+      atom->type[m]=1;
 
-    // Deleting old SMC bond
-    for (int ibond = 0; ibond < atom->num_bond[m]; ibond++) {
-      if ((atom->bond_type[m][ibond] == smcbtype) || (atom->bond_type[m][ibond] == smcbitype)){
-        atom->bond_type[m][ibond] = atom->bond_type[m][atom->num_bond[m]-1];
-        atom->bond_atom[m][ibond] = atom->bond_atom[m][atom->num_bond[m]-1];
+      // Deleting old SMC bond
+      for (int ibond = 0; ibond < atom->num_bond[m]; ibond++) {
+        if ((atom->bond_type[m][ibond] == smcbtype) || (atom->bond_type[m][ibond] == smcbitype)){
+          atom->bond_type[m][ibond] = atom->bond_type[m][atom->num_bond[m]-1];
+          atom->bond_atom[m][ibond] = atom->bond_atom[m][atom->num_bond[m]-1];
 
-        if (n_histories > 0)
-          for (auto &ihistory: histories) {
-            dynamic_cast<FixBondHistory *>(ihistory)->shift_history(m,ibond,atom->num_bond[m]-1);
-            dynamic_cast<FixBondHistory *>(ihistory)->delete_history(m,atom->num_bond[m]-1);
-            }
+          if (n_histories > 0)
+            for (auto &ihistory: histories) {
+              dynamic_cast<FixBondHistory *>(ihistory)->shift_history(m,ibond,atom->num_bond[m]-1);
+              dynamic_cast<FixBondHistory *>(ihistory)->delete_history(m,atom->num_bond[m]-1);
+              }
 
-        atom->num_bond[m]--;
-        break;
+          atom->num_bond[m]--;
+          break;
+        }
       }
     }
-  }
 
-  if ((man = idan) >= 0) {
-      atom->type[man] = 1;
-  }
+    if ((man = idan) >= 0) {
+        atom->type[man] = 1;
+    }
 
+  }
+  
+  
   delete random;
+  delete anch;
+  delete hing;
   memory->destroy(xyzanch);
   memory->destroy(xyzhing);
   memory->destroy(list);
+  
 
 }
 
@@ -182,28 +196,42 @@ void FixSMC::post_integrate()
   else if (update->ntimestep == nevery){
   //Initialize a random SMC within 5 beads of distance
 
+  int i=0;
   // Define a random anchor position inside a monodisperse system with L=1000
-  anch = static_cast<int> (random->uniform() * lpol);
+  while (i<smcnum)
+  { 
+    anch[i] = static_cast<int> (random->uniform() * lpol);
+      
+    if (hdir!=0) hing[i] = anch[i] + 2*hdir/abs(hdir);
+    else hing[i] = anch[i] - 2*adir/abs(adir);
+
+    int j;
+    for (j = 0; j < i; j++)
+    {
+      if(((anch[i]==anch[j])||(hing[i]==hing[j])) || ((anch[i]==hing[j])||(hing[i]==anch[j]))){break;}
+    }
     
-  if (hdir!=0) hing = anch + 2*hdir/abs(hdir);
-  else hing = anch - 2*adir/abs(adir);
+    if(((anch[i]==anch[j])||(hing[i]==hing[j])) || ((anch[i]==hing[j])||(hing[i]==anch[j]))){continue;}
 
-  const int idhi = atom->map(hing);
-  const int idan = atom->map(anch);
+    const int idhi = atom->map(hing[i]);
+    const int idan = atom->map(anch[i]);
 
-  // Change type to defined hinge and anchor beads if in processor
-  if ((m = idhi) >= 0){
+    // Change type to defined hinge and anchor beads if in processor
+    if ((m = idhi) >= 0){
 
-    atom->type[m] = smctype;
-    // Creating new SMC bond
-    if (atom->num_bond[m] == atom->bond_per_atom) error->one(FLERR, "New bond exceeded bonds per atom limit of {} in create_bonds", atom->bond_per_atom);
-    atom->bond_type[m][atom->num_bond[m]] = smcbitype;
-    atom->bond_atom[m][atom->num_bond[m]] = anch;
-    atom->num_bond[m]++;
+      atom->type[m] = smctype;
+      // Creating new SMC bond
+      if (atom->num_bond[m] == atom->bond_per_atom) error->one(FLERR, "New bond exceeded bonds per atom limit of {} in create_bonds", atom->bond_per_atom);
+      atom->bond_type[m][atom->num_bond[m]] = smcbitype;
+      atom->bond_atom[m][atom->num_bond[m]] = anch[i];
+      atom->num_bond[m]++;
+    }
+    if ((man = idan) >= 0) {
+        atom->type[man] = smctype;
+    }
+    i++;
   }
-  if ((man = idan) >= 0) {
-      atom->type[man] = smctype;
-  }
+
   return;
   }
   
@@ -211,18 +239,7 @@ void FixSMC::post_integrate()
 
   if (random->uniform() > prob) return;
   
-  // Check if we are going to the polymer border
-  if ((hing + hdir)%lpol == 0) hdir = 0;  
-  if ((anch + adir)%lpol == 0) adir = 0;  
-
   if ((hdir==0) && (adir==0)) return;
-  int mnew;
-  int mannew;
-
-  const int idnewhi = atom->map(hing+hdir);
-  const int idhi = atom->map(hing);
-  const int idnewan = atom->map(anch+adir);
-  const int idan = atom->map(anch);
 
   double *xyzanchtemp = nullptr;
   double *xyzhingtemp = nullptr;
@@ -230,149 +247,170 @@ void FixSMC::post_integrate()
   int *anchcount= nullptr;
   int *hingcount= nullptr;
 
-  memory->destroy(xyzanchtemp);
-  memory->create(xyzanchtemp,3,"FixSMC::post_integrate()");
-  memory->destroy(xyzhingtemp);
-  memory->create(xyzhingtemp,3,"FixSMC::post_integrate()");
-  memory->destroy(anchcount);
-  memory->create(anchcount,1,"FixSMC::post_integrate()");
-  memory->destroy(hingcount);
-  memory->create(hingcount,1,"FixSMC::post_integrate()");
-
-  anchcount[0] = 0;
-  hingcount[0] = 0;
-
-  xyzanchtemp[0] = 0;
-  xyzanchtemp[1] = 0;
-  xyzanchtemp[2] = 0;
-
-  xyzhingtemp[0] = 0;
-  xyzhingtemp[1] = 0;
-  xyzhingtemp[2] = 0;
-
-  memory->destroy(xyzanch);
-  memory->create(xyzanch,3,"FixSMC::post_integrate()");
-  memory->destroy(xyzhing);
-  memory->create(xyzhing,3,"FixSMC::post_integrate()");
-  
-  double unwrap[3];
-
-
-  if (((mannew = idnewan) >= 0) && (idnewan<(atom->nlocal))){
-    domain->unmap(atom->x[mannew], atom->image[mannew], unwrap);
-    xyzanchtemp[0] += unwrap[0];
-    xyzanchtemp[1] += unwrap[1];
-    xyzanchtemp[2] += unwrap[2];
-    anchcount[0]+=1;
-  }
-
-  if (((mnew = idnewhi) >= 0) && (idnewhi<(atom->nlocal))){
-    domain->unmap(atom->x[mnew], atom->image[mnew], unwrap);
-
-    xyzhingtemp[0] += unwrap[0];
-    xyzhingtemp[1] += unwrap[1];
-    xyzhingtemp[2] += unwrap[2];
-    hingcount[0]+=1;
-  } 
-
   int* hingcounts = nullptr;
   int* anchcounts = nullptr;
 
-  memory->destroy(anchcounts);
-  memory->create(anchcounts,1,"FixSMC::post_integrate()");
-  memory->destroy(hingcounts);
-  memory->create(hingcounts,1,"FixSMC::post_integrate()");
+  double unwrap[3];
 
-  MPI_Barrier(world);
-
-  MPI_Allreduce(xyzanchtemp, xyzanch, 3, MPI_DOUBLE, MPI_SUM, world);
-  MPI_Allreduce(xyzhingtemp, xyzhing, 3, MPI_DOUBLE, MPI_SUM, world);
-  MPI_Allreduce(anchcount, anchcounts, 1, MPI_INT, MPI_SUM, world);
-  MPI_Allreduce(hingcount, hingcounts, 1, MPI_INT, MPI_SUM, world);
+  int mnew;
+  int mannew;
 
   double dist = 0;
-
-  for (int k=0; k<3 ; k++){
-    xyzanch[k] = xyzanch[k]/anchcounts[0];
-    xyzhing[k] = xyzhing[k]/hingcounts[0];
-    dist += (xyzanch[k]-xyzhing[k])*(xyzanch[k]-xyzhing[k]);
-  }
-  if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Number of counts is " + std::to_string(anchcounts[0]) + " Anchor " + std::to_string(hingcounts[0]) + " Hinge " + "\n");
-  if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Proposed distance is " + std::to_string(sqrt(dist)) + "\n");
-  if (!(dist > cutoff*cutoff || (anchcounts[0]==0) || (hingcounts[0]==0))) {
-
-  int *num_bond = atom->num_bond;
-  tagint **bond_atom = atom->bond_atom;
-  int **bond_type = atom->bond_type;
 
   auto histories = modify->get_fix_by_style("BOND_HISTORY");
   int n_histories = histories.size();
 
-  if (((m = idhi) >= 0) && (hdir!=0)){
+  for (int i = 0; i < smcnum; i++)
+  {
+      
+    // Check if we are going to the polymer border
+    if ((hing[i] + hdir)%lpol == 0) return;  
+    if ((anch[i] + adir)%lpol == 0) return;  
 
-    atom->type[m]=1;
-
-    // Deleting old SMC bond
-    for (int ibond = 0; ibond < atom->num_bond[m]; ibond++) {
-      if ((bond_type[m][ibond] == smcbtype) || (bond_type[m][ibond] == smcbitype)){
-        atom->bond_type[m][ibond] = atom->bond_type[m][num_bond[m]-1];
-        atom->bond_atom[m][ibond] = atom->bond_atom[m][num_bond[m]-1];
-
-        if (n_histories > 0)
-          for (auto &ihistory: histories) {
-            dynamic_cast<FixBondHistory *>(ihistory)->shift_history(m,ibond,atom->num_bond[m]-1);
-            dynamic_cast<FixBondHistory *>(ihistory)->delete_history(m,atom->num_bond[m]-1);
-            }
-
-        atom->num_bond[m]--;
-        break;
-      }
-    }
-  }
-
-  if (((man = idan) >= 0) && (adir!=0)){
-    atom->type[man] = 1;
-  }
-
-  if (((mannew = idnewan) >= 0) && (adir!=0)){
-    atom->type[mannew] = smctype;
-  }
-
-  if (((mnew = idnewhi) >= 0) && (hdir!=0)){
-    atom->type[mnew]=smctype;
-    
-    bool create = 1;
-    for (int ibond = 0; ibond < atom->num_bond[mnew]; ibond++) {
-      if ((bond_type[mnew][ibond] == smcbtype) || (bond_type[mnew][ibond] == smcbitype)){
-        create = 0;
-      }
+    for (int j = 0; j < smcnum; j++)
+    {
+      if((((anch[i]+adir)==anch[j])||((hing[i]+hdir)==hing[j])) || (((anch[i]+adir)==hing[j])||((hing[i]+hdir)==anch[j]))){return;}
     }
 
-    if (create) {
-    // Creating new SMC bond
-    if (num_bond[mnew] == atom->bond_per_atom) error->one(FLERR, "New bond exceeded bonds per atom limit of {} in create_bonds", atom->bond_per_atom);
-    bond_type[mnew][num_bond[mnew]] = smcbtype;
-    bond_atom[mnew][num_bond[mnew]] = (anch+adir);
-    num_bond[mnew]++;
-    }
-    }
+    const int idnewhi = atom->map(hing[i]+hdir);
+    const int idhi = atom->map(hing[i]);
+    const int idnewan = atom->map(anch[i]+adir);
+    const int idan = atom->map(anch[i]);
 
-    anch+=adir;
-    hing+=hdir;
+    memory->destroy(xyzanchtemp);
+    memory->create(xyzanchtemp,3,"FixSMC::post_integrate()");
+    memory->destroy(xyzhingtemp);
+    memory->create(xyzhingtemp,3,"FixSMC::post_integrate()");
+    memory->destroy(anchcount);
+    memory->create(anchcount,1,"FixSMC::post_integrate()");
+    memory->destroy(hingcount);
+    memory->create(hingcount,1,"FixSMC::post_integrate()");
 
-    }
+    anchcount[0] = 0;
+    hingcount[0] = 0;
+
+    xyzanchtemp[0] = 0;
+    xyzanchtemp[1] = 0;
+    xyzanchtemp[2] = 0;
+
+    xyzhingtemp[0] = 0;
+    xyzhingtemp[1] = 0;
+    xyzhingtemp[2] = 0;
 
     memory->destroy(xyzanch);
+    memory->create(xyzanch,3,"FixSMC::post_integrate()");
     memory->destroy(xyzhing);
-    memory->destroy(xyzanchtemp);
-    memory->destroy(xyzhingtemp);
-    memory->destroy(anchcount);
-    memory->destroy(hingcount);
-    memory->destroy(hingcounts);
-    memory->destroy(anchcounts);
+    memory->create(xyzhing,3,"FixSMC::post_integrate()");
+    
+    if (((mannew = idnewan) >= 0) && (idnewan<(atom->nlocal))){
+      domain->unmap(atom->x[mannew], atom->image[mannew], unwrap);
+      xyzanchtemp[0] += unwrap[0];
+      xyzanchtemp[1] += unwrap[1];
+      xyzanchtemp[2] += unwrap[2];
+      anchcount[0]+=1;
+    }
 
-    return;
+    if (((mnew = idnewhi) >= 0) && (idnewhi<(atom->nlocal))){
+      domain->unmap(atom->x[mnew], atom->image[mnew], unwrap);
+
+      xyzhingtemp[0] += unwrap[0];
+      xyzhingtemp[1] += unwrap[1];
+      xyzhingtemp[2] += unwrap[2];
+      hingcount[0]+=1;
+    } 
+
+    memory->destroy(anchcounts);
+    memory->create(anchcounts,1,"FixSMC::post_integrate()");
+    memory->destroy(hingcounts);
+    memory->create(hingcounts,1,"FixSMC::post_integrate()");
+
+    MPI_Barrier(world);
+
+    MPI_Allreduce(xyzanchtemp, xyzanch, 3, MPI_DOUBLE, MPI_SUM, world);
+    MPI_Allreduce(xyzhingtemp, xyzhing, 3, MPI_DOUBLE, MPI_SUM, world);
+    MPI_Allreduce(anchcount, anchcounts, 1, MPI_INT, MPI_SUM, world);
+    MPI_Allreduce(hingcount, hingcounts, 1, MPI_INT, MPI_SUM, world);
+
+    dist = 0;
+
+    for (int k=0; k<3 ; k++){
+      xyzanch[k] = xyzanch[k]/anchcounts[0];
+      xyzhing[k] = xyzhing[k]/hingcounts[0];
+      dist += (xyzanch[k]-xyzhing[k])*(xyzanch[k]-xyzhing[k]);
+    }
+
+    if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Number of counts is " + std::to_string(anchcounts[0]) + " Anchor " + std::to_string(hingcounts[0]) + " Hinge " + "\n");
+    if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Proposed distance is " + std::to_string(sqrt(dist)) + "\n");
+    
+    if (!(dist > cutoff*cutoff || (anchcounts[0]==0) || (hingcounts[0]==0))) {
+
+    if (((m = idhi) >= 0) && (hdir!=0)){
+
+      atom->type[m]=1;
+
+      // Deleting old SMC bond
+      for (int ibond = 0; ibond < atom->num_bond[m]; ibond++) {
+        if ((atom->bond_type[m][ibond] == smcbtype) || (atom->bond_type[m][ibond] == smcbitype)){
+          atom->bond_type[m][ibond] = atom->bond_type[m][atom->num_bond[m]-1];
+          atom->bond_atom[m][ibond] = atom->bond_atom[m][atom->num_bond[m]-1];
+
+          if (n_histories > 0)
+            for (auto &ihistory: histories) {
+              dynamic_cast<FixBondHistory *>(ihistory)->shift_history(m,ibond,atom->num_bond[m]-1);
+              dynamic_cast<FixBondHistory *>(ihistory)->delete_history(m,atom->num_bond[m]-1);
+              }
+
+          atom->num_bond[m]--;
+          break;
+        }
+      }
+    }
+
+    if (((man = idan) >= 0) && (adir!=0)){
+      atom->type[man] = 1;
+    }
+
+    if (((mannew = idnewan) >= 0) && (adir!=0)){
+      atom->type[mannew] = smctype;
+    }
+
+    if (((mnew = idnewhi) >= 0) && (hdir!=0)){
+      atom->type[mnew]=smctype;
+      
+      bool create = 1;
+      for (int ibond = 0; ibond < atom->num_bond[mnew]; ibond++) {
+        if ((atom->bond_type[mnew][ibond] == smcbtype) || (atom->bond_type[mnew][ibond] == smcbitype)){
+          create = 0;
+        }
+      }
+
+      if (create) {
+      // Creating new SMC bond
+      if (atom->num_bond[mnew] == atom->bond_per_atom) error->one(FLERR, "New bond exceeded bonds per atom limit of {} in create_bonds", atom->bond_per_atom);
+      atom->bond_type[mnew][atom->num_bond[mnew]] = smcbtype;
+      atom->bond_atom[mnew][atom->num_bond[mnew]] = (anch[i]+adir);
+      atom->num_bond[mnew]++;
+      }
+      }
+
+      anch[i]+=adir;
+      hing[i]+=hdir;
+
+      }
+
   } 
+
+  memory->destroy(xyzanch);
+  memory->destroy(xyzhing);
+  memory->destroy(xyzanchtemp);
+  memory->destroy(xyzhingtemp);
+  memory->destroy(anchcount);
+  memory->destroy(hingcount);
+  memory->destroy(hingcounts);
+  memory->destroy(anchcounts);
+  return;
+
+  }
   
   }
 
@@ -394,11 +432,14 @@ double FixSMC::memory_usage()
 void FixSMC::write_restart(FILE *fp)
 {
     int n = 0;
-    double list[4];
+    double list[4+2*smcnum];
     list[n++] = ubuf(next_reneighbor).d;
     list[n++] = ubuf(update->ntimestep).d;
-    list[n++] = ubuf(anch).d;
-    list[n++] = ubuf(hing).d;
+    for (int i = 0; i < smcnum; i++)
+    {
+      list[n++] = ubuf(anch[i]).d;
+      list[n++] = ubuf(hing[i]).d;
+    }
 
     if (comm->me == 0)
     {
@@ -422,9 +463,11 @@ void FixSMC::restart(char *buf)
     if (ntimestep_restart != update->ntimestep)
         error->all(FLERR, "Must not reset timestep when restarting fix smc");
 
-    anch = (bigint)ubuf(list[n++]).i;
-
-    hing = (bigint)ubuf(list[n++]).i;
+    for (int i = 0; i < smcnum; i++)
+    {
+      anch[i] = (bigint)ubuf(list[n++]).i;
+      hing[i] = (bigint)ubuf(list[n++]).i;
+    }
 
 }
 

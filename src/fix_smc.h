@@ -39,14 +39,13 @@ namespace LAMMPS_NS
       void restart(char *) override;
 
    private:
-      bigint anch, hing;
-      int smctype, smcbtype, smcbitype, lpol, adir, hdir;
-      double prob,cutoff;
+      bigint *anch, *hing;
+      int smctype, smcbtype, smcbitype, lpol, adir, hdir, smcnum;
+      double prob, cutoff;
       double *xyzanch, *xyzhing;
       bool debug;
       class NeighList *list;
       class RanMars *random;
-
    };
 
 } // namespace LAMMPS_NS
