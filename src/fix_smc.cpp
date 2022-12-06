@@ -48,7 +48,7 @@ static const char cite_fix_smc[] =
 
 FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   Fix(lmp, narg, arg),
-  anch(0),hing(0), smctype(0), smcbtype(0), debug(0), list(nullptr), random(nullptr)
+  anch(0),hing(0), smctype(0), smcbtype(0), debug(1), list(nullptr), random(nullptr)
 {
   if (lmp->citeme) lmp->citeme->add(cite_fix_smc);
 
@@ -93,6 +93,7 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   
   xyzanch = nullptr;
   xyzhing = nullptr;
+
 }
 
 /* ---------------------------------------------------------------------- */
@@ -215,7 +216,6 @@ void FixSMC::post_integrate()
   if ((anch + adir)%lpol == 0) adir = 0;  
 
   if ((hdir==0) && (adir==0)) return;
-  
   int mnew;
   int mannew;
 
@@ -263,7 +263,7 @@ void FixSMC::post_integrate()
     xyzanchtemp[0] += unwrap[0];
     xyzanchtemp[1] += unwrap[1];
     xyzanchtemp[2] += unwrap[2];
-    anchcount[0]++;
+    anchcount[0]+=1;
   }
 
   if (((mnew = idnewhi) >= 0) && (idnewhi<(atom->nlocal))){
@@ -272,7 +272,7 @@ void FixSMC::post_integrate()
     xyzhingtemp[0] += unwrap[0];
     xyzhingtemp[1] += unwrap[1];
     xyzhingtemp[2] += unwrap[2];
-    hingcount[0]++;
+    hingcount[0]+=1;
   } 
 
   int* hingcounts = nullptr;
@@ -297,7 +297,7 @@ void FixSMC::post_integrate()
   }
   if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Number of counts is " + std::to_string(anchcounts[0]) + " Anchor " + std::to_string(hingcounts[0]) + " Hinge " + "\n");
   if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Proposed distance is " + std::to_string(sqrt(dist)) + "\n");
-  if (dist > cutoff*cutoff || (anchcounts[0]==0) || (hingcounts[0]==0)) return;
+  if (!(dist > cutoff*cutoff || (anchcounts[0]==0) || (hingcounts[0]==0))) {
 
   int *num_bond = atom->num_bond;
   tagint **bond_atom = atom->bond_atom;
@@ -338,17 +338,27 @@ void FixSMC::post_integrate()
 
   if (((mnew = idnewhi) >= 0) && (hdir!=0)){
     atom->type[mnew]=smctype;
+    
+    bool create = 1;
+    for (int ibond = 0; ibond < atom->num_bond[mnew]; ibond++) {
+      if ((bond_type[mnew][ibond] == smcbtype) || (bond_type[mnew][ibond] == smcbitype)){
+        create = 0;
+      }
+    }
 
+    if (create) {
     // Creating new SMC bond
     if (num_bond[mnew] == atom->bond_per_atom) error->one(FLERR, "New bond exceeded bonds per atom limit of {} in create_bonds", atom->bond_per_atom);
     bond_type[mnew][num_bond[mnew]] = smcbtype;
     bond_atom[mnew][num_bond[mnew]] = (anch+adir);
     num_bond[mnew]++;
-
+    }
     }
 
     anch+=adir;
     hing+=hdir;
+
+    }
 
     memory->destroy(xyzanch);
     memory->destroy(xyzhing);
