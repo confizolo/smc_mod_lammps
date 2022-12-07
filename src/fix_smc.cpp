@@ -206,6 +206,8 @@ void FixSMC::post_integrate()
       
     if ((anch[i]+1)%lpol==0){anch[i]-=1;}
     if ((anch[i]-1)%lpol==0){anch[i]+=1;}
+    if ((anch[i]+1)%lpol==1){anch[i]-=2;}
+    if ((anch[i]-1)%lpol==1){anch[i]+=2;}
 
     if (hdir!=0) hing[i] = anch[i] + 2*hdir/abs(hdir);
     else hing[i] = anch[i] - 2*adir/abs(adir);
