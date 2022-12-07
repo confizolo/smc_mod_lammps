@@ -312,10 +312,10 @@ void FixSMC::post_integrate()
 
     // Check if we are going to the polymer border on one side or on the other
     if (hdir/abs(hdir) < 0){
-      ((hing[i] + hdir)%lpol == 0) temphdir = 0;
+      if ((hing[i] + hdir)%lpol == 0) temphdir = 0;
     }
     else{
-      ((hing[i] + hdir)%lpol == 1) temphdir = 0;
+      if ((hing[i] + hdir)%lpol == 1) temphdir = 0;
     }
     if (adir/abs(adir) < 0){
       if ((anch[i] + adir)%lpol == 0) tempadir = 0;
