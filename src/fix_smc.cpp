@@ -31,9 +31,6 @@
 #include "pair.h"
 #include "random_mars.h"
 #include "update.h"
-#include "create_bonds.h"
-#include "delete_bonds.h"
-#include <iostream>
 #include <cmath>
 #include <cstring>
 #include <utils.h>
@@ -48,7 +45,7 @@ static const char cite_fix_smc[] =
 
 FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   Fix(lmp, narg, arg),
-  anch(nullptr),hing(nullptr), smctype(0), smcbtype(0), smcnum(0), debug(0), list(nullptr), random(nullptr)
+  anch(nullptr),hing(nullptr), smctype(0), smcbtype(0), smcnum(0), debug(0), random(nullptr)
 {
   if (lmp->citeme) lmp->citeme->add(cite_fix_smc);
 
@@ -152,9 +149,7 @@ FixSMC::~FixSMC()
   delete anch;
   delete hing;
   memory->destroy(xyzanch);
-  memory->destroy(xyzhing);
-  memory->destroy(list);
-  
+  memory->destroy(xyzhing);  
 
 }
 
@@ -172,17 +167,11 @@ int FixSMC::setmask()
 void FixSMC::init()
 {
 
-
   if (force->pair == nullptr || force->bond == nullptr)
     error->all(FLERR,"Fix smc requires pair and bond styles");
 
 }
 
-
-void FixSMC::init_list(int /*id*/, NeighList *ptr)
-{
-  list = ptr;
-}
 
 /* ----------------------------------------------------------------------
 

@@ -32,7 +32,6 @@ namespace LAMMPS_NS
       ~FixSMC() override;
       int setmask() override;
       void init() override;
-      void init_list(int, class NeighList *) override;
       void post_integrate() override;
       double memory_usage() override;
       void write_restart(FILE *fp) override;
@@ -44,7 +43,6 @@ namespace LAMMPS_NS
       double prob, cutoff;
       double *xyzanch, *xyzhing;
       bool debug;
-      class NeighList *list;
       class RanMars *random;
    };
 
