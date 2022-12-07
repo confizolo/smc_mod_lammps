@@ -205,9 +205,9 @@ void FixSMC::post_integrate()
     anch[i] = static_cast<int> (random->uniform() * atom->natoms);
       
     if ((anch[i]+1)%lpol==0){anch[i]-=1;}
-    if ((anch[i]-1)%lpol==0){anch[i]+=1;}
+    if ((anch[i]-1)%lpol==1){anch[i]+=1;}
     if ((anch[i]+1)%lpol==1){anch[i]-=2;}
-    if ((anch[i]-1)%lpol==1){anch[i]+=2;}
+    if ((anch[i]-1)%lpol==0){anch[i]+=2;}
 
     if (hdir!=0) hing[i] = anch[i] + 2*hdir/abs(hdir);
     else hing[i] = anch[i] - 2*adir/abs(adir);
@@ -311,9 +311,19 @@ void FixSMC::post_integrate()
     temphdir = hdir;
 
     // Check if we are going to the polymer border on one side or on the other
-    if (((hing[i] + hdir)%lpol == 0) && ((anch[i] + adir)%lpol == 0)) continue;  
-    else if ((anch[i] + adir)%lpol == 0) tempadir = 0;
-    else if ((hing[i] + hdir)%lpol == 0) temphdir = 0;
+    if (hdir/abs(hdir) < 0){
+      ((hing[i] + hdir)%lpol == 0) temphdir = 0;
+    }
+    else{
+      ((hing[i] + hdir)%lpol == 1) temphdir = 0;
+    }
+    if (adir/abs(adir) < 0){
+      if ((anch[i] + adir)%lpol == 0) tempadir = 0;
+    }
+    else{
+      if ((anch[i] + adir)%lpol == 1) tempadir = 0;
+    }
+    if ((tempadir==0) && (temphdir==0)) continue;
 
     // Check if the new movement is forbidden because of superposition of SMCs
     flag=0;
