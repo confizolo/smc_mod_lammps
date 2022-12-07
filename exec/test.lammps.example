@@ -37,28 +37,30 @@ bond_style hybrid fene harmonic
 special_bonds fene
 bond_coeff   1 fene  30.0   1.6  1.0  1.0
 bond_coeff   2 harmonic 100 1.1
-bond_coeff   3 fene  20.0   1.6  1.0  1.0
+bond_coeff   3 fene  20.0   1.7  1.0  1.0
+
 
 ####################################
 ####    ANGLES                #######
 ####################################
 angle_style cosine
-angle_coeff 1 20
+angle_coeff * 20
 
 #########################
 #### SMC PARAMETERS #####
 #########################
 variable prob equal 1
 variable lpol equal 1000
-variable cutoff equal 1.6
-variable rate equal 1000
+variable cutoff equal 1.5
+variable rate equal 10000
+variable nsmc equal 15
 
 ######################################
 # INTEGRATION OF Equations of motion #
 ######################################
 fix 1 dna   nve
 fix 2 all  langevin   1.0 1.0   1.0  ${seed2}
-fix 3 all smc ${rate} 234224 ${prob} ${lpol} -1 1 2 3 2 ${cutoff}
+fix 3 all smc ${rate} 234224 ${prob} ${lpol} -1 1 ${nsmc} 2 2 2 ${cutoff}
 
 ######################
 #### CUSTOM INFO #####
@@ -68,15 +70,11 @@ thermo_style   custom   step  temp  epair vol cpu
 timestep 0.01
 reset_timestep 0
 
+restart 100000 ../dumps/tmp.restart
 
-dump 1 all custom 1000 ../dumps/test1_prob${prob}_rate${rate}_cutoff${cutoff}_dump_parallel.lammpstrj id type x y z 
+dump 1 all custom 5000 ../dumps/test1_prob${prob}_rate${rate}_cutoff${cutoff}_nsmc${nsmc}_dump_parallel.lammpstrj id type x y z 
 
 compute 1 all property/local batom1 batom2 btype
-dump 2 all local 1000 ../dumps/test1_prob${prob}_rate${rate}_cutoff${cutoff}_bond_parallel.lammpstrj index c_1[1] c_1[2] c_1[3]
+dump 2 all local 5000 ../dumps/test1_prob${prob}_rate${rate}_cutoff${cutoff}_nsmc${nsmc}_bond_parallel.lammpstrj index c_1[1] c_1[2] c_1[3]
 
-run 100000
-
-unfix 3 
-
-run 100000
-
+run 700000
