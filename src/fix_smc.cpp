@@ -54,7 +54,7 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   nevery = utils::inumeric(FLERR,arg[3],false,lmp);
   if (nevery <= 0) error->all(FLERR,"Illegal fix smc command");
 
-  next_reneighbor = -1;
+  // Flag to activate dump in restart file of fix smc structure
   restart_global = 1;
 
   int seed = utils::inumeric(FLERR,arg[4],false,lmp);
@@ -106,16 +106,20 @@ FixSMC::~FixSMC()
   int m;
   int man;
 
+  // Get bond histories to apply bond changes
   auto histories = modify->get_fix_by_style("BOND_HISTORY");
   int n_histories = histories.size();
 
   int idhi;
   int idan;
+
+  // Loop over the SMCs instantiated
   for (int i = 0; i < smcnum; i++)
   {
     idhi = atom->map(hing[i]);
     idan = atom->map(anch[i]);
 
+    // Check if hinge is in the current processor and delete bonds/reset to original type
     if (((m = idhi) >= 0) && (hdir!=0)){
 
       atom->type[m]=1;
@@ -137,13 +141,12 @@ FixSMC::~FixSMC()
         }
       }
     }
-
+    // Check if anchor is in the current processor and reset the type
     if ((man = idan) >= 0) {
         atom->type[man] = 1;
     }
 
   }
-  
   
   delete random;
   delete anch;
@@ -185,20 +188,25 @@ void FixSMC::post_integrate()
   if (update->ntimestep % nevery) return;
 
   else if (update->ntimestep == nevery){
-  //Initialize a random SMC within 5 beads of distance
+
+  //Initialize a random SMC within 2 beads of distance
   int idhi;
   int idan;
   
-  // Define a random anchor position inside a monodisperse system with L=1000
+  // Define a random anchor position inside a monodisperse system with L=lpol
   if (comm->me==0){
 
+  // Define randomly the position of the smc hinge and anchors along one of the polymers
   int i=0;
   bool flag=0;
 
   while (i<smcnum)
   { 
-    anch[i] = static_cast<int> (random->uniform() * lpol);
+    anch[i] = static_cast<int> (random->uniform() * atom->natoms);
       
+    if ((anch[i]+1)%lpol==0){anch[i]-=1}
+    if ((anch[i]-1)%lpol==0){anch[i]+=1}
+
     if (hdir!=0) hing[i] = anch[i] + 2*hdir/abs(hdir);
     else hing[i] = anch[i] - 2*adir/abs(adir);
 
@@ -242,6 +250,7 @@ void FixSMC::post_integrate()
       atom->bond_atom[m][atom->num_bond[m]] = anch[i];
       atom->num_bond[m]++;
     }
+    // Change bead anchor type to smctype
     if ((man = idan) >= 0) {
         atom->type[man] = smctype;
     }
@@ -253,8 +262,10 @@ void FixSMC::post_integrate()
   
   else{
 
+  // Draw a random number for the jump attempt
   if (random->uniform() > prob) return;
   
+  // Return if the smcs are still
   if ((hdir==0) && (adir==0)) return;
 
   double *xyzanchtemp = nullptr;
@@ -293,14 +304,16 @@ void FixSMC::post_integrate()
   for (int i = 0; i < smcnum; i++)
   {
     
+    // Temporaneous direction if the smc is going towards the polymer end or another smc bead
     tempadir = adir;
     temphdir = hdir;
 
-    // Check if we are going to the polymer border
+    // Check if we are going to the polymer border on one side or on the other
     if (((hing[i] + hdir)%lpol == 0) && ((anch[i] + adir)%lpol == 0)) continue;  
     else if ((anch[i] + adir)%lpol == 0) tempadir = 0;
     else if ((hing[i] + hdir)%lpol == 0) temphdir = 0;
 
+    // Check if the new movement is forbidden because of superposition of SMCs
     flag=0;
     for (int j = 0; j < smcnum; j++)
     {
@@ -342,6 +355,7 @@ void FixSMC::post_integrate()
     memory->destroy(xyzhing);
     memory->create(xyzhing,3,"FixSMC::post_integrate()");
     
+    // Computing the distance between the new beads in a parallel way
     if (((mannew = idnewan) >= 0) && (idnewan<(atom->nlocal))){
       domain->unmap(atom->x[mannew], atom->image[mannew], unwrap);
       xyzanchtemp[0] += unwrap[0];
@@ -382,6 +396,7 @@ void FixSMC::post_integrate()
     // if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Number of counts is " + std::to_string(anchcounts[0]) + " Anchor " + std::to_string(hingcounts[0]) + " Hinge " + "\n");
     // if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Proposed distance is " + std::to_string(sqrt(dist)) + "\n");
     
+    // Check if the distance is small enough to run the jump
     if (!(dist > cutoff*cutoff || (anchcounts[0]==0) || (hingcounts[0]==0))) {
 
     if (((m = idhi) >= 0)){
@@ -403,6 +418,7 @@ void FixSMC::post_integrate()
         }
       }
 
+      // Move the bond to the new anchor even if the hinge is still if not already present
       if (temphdir==0){
       
       // if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Changing bond keeping hinge fixed \n");
@@ -436,6 +452,7 @@ void FixSMC::post_integrate()
       atom->type[mannew] = smctype;
     }
 
+    // Create new bond between new hinge and anchor if not already present
     if (((mnew = idnewhi) >= 0) && (temphdir!=0)){
       atom->type[mnew]=smctype;
       
@@ -502,6 +519,7 @@ void FixSMC::write_restart(FILE *fp)
     restart_list[restart_n++] = static_cast<long>(next_reneighbor);
     restart_list[restart_n++] = static_cast<long>(update->ntimestep);
     
+    // Saving SMCs positions
     for (int i = 0; i < smcnum; i++)
     {
       restart_list[restart_n++] = anch[i];
@@ -535,6 +553,7 @@ void FixSMC::restart(char *buf)
     if (ntimestep_restart != update->ntimestep)
         error->all(FLERR, "Must not reset timestep when restarting fix smc");
 
+    // Loading SMCs positions
     for (int j = 0; j < smcnum; j++)
     {
       anch[j] = static_cast<long>(restart_list[restart_n++]);     
