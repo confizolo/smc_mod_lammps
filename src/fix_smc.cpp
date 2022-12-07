@@ -232,10 +232,10 @@ void FixSMC::post_integrate()
 
   MPI_Barrier(world);
 
-  for (int i = 0; i < smcnum; i++)
-  { 
-    if ((debug)) utils::logmesg(lmp, "Anchors are" + std::to_string(anch[i]) + " " + std::to_string(hing[i]) + "\n");
-  }
+  // for (int i = 0; i < smcnum; i++)
+  // { 
+  //   if ((debug)) utils::logmesg(lmp, "Anchors are" + std::to_string(anch[i]) + " " + std::to_string(hing[i]) + "\n");
+  // }
     
   for (int i = 0; i < smcnum; i++)
   {
@@ -292,26 +292,35 @@ void FixSMC::post_integrate()
   int idnewan;
   int idan; 
 
+  int tempadir = adir;
+  int temphdir = hdir;
   bool flag=0;
 
   for (int i = 0; i < smcnum; i++)
   {
-      
+    
+    tempadir = adir;
+    temphdir = hdir;
+
     // Check if we are going to the polymer border
-    if ((hing[i] + hdir)%lpol == 0) continue;  
-    if ((anch[i] + adir)%lpol == 0) continue;  
+    if (((hing[i] + hdir)%lpol == 0) && ((anch[i] + adir)%lpol == 0)) continue;  
+    else if ((anch[i] + adir)%lpol == 0) tempadir = 0;
+    else if ((hing[i] + hdir)%lpol == 0) temphdir = 0;
 
     flag=0;
     for (int j = 0; j < smcnum; j++)
     {
-      if((((anch[i]+adir)==anch[j])||((hing[i]+hdir)==hing[j])) || (((anch[i]+adir)==hing[j])||((hing[i]+hdir)==anch[j]))){flag =1; break;}
+      if (j==i) continue;
+      if((((anch[i]+tempadir)==anch[j])||((anch[i]+tempadir)==hing[j])) && (((hing[i]+temphdir)==hing[j])||((hing[i]+temphdir)==anch[j]))){flag =1; break;}
+      else if (((anch[i]+tempadir)==anch[j])||((anch[i]+tempadir)==hing[j])) tempadir=0;
+      else if (((hing[i]+temphdir)==hing[j])||((hing[i]+temphdir)==anch[j])) temphdir=0;
     }
 
     if(flag){continue;}
 
-    idnewhi = atom->map(hing[i]+hdir);
+    idnewhi = atom->map(hing[i]+temphdir);
     idhi = atom->map(hing[i]);
-    idnewan = atom->map(anch[i]+adir);
+    idnewan = atom->map(anch[i]+tempadir);
     idan = atom->map(anch[i]);
 
     memory->destroy(xyzanchtemp);
@@ -376,14 +385,12 @@ void FixSMC::post_integrate()
       dist += (xyzanch[k]-xyzhing[k])*(xyzanch[k]-xyzhing[k]);
     }
 
-    if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Number of counts is " + std::to_string(anchcounts[0]) + " Anchor " + std::to_string(hingcounts[0]) + " Hinge " + "\n");
-    if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Proposed distance is " + std::to_string(sqrt(dist)) + "\n");
+    // if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Number of counts is " + std::to_string(anchcounts[0]) + " Anchor " + std::to_string(hingcounts[0]) + " Hinge " + "\n");
+    // if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Proposed distance is " + std::to_string(sqrt(dist)) + "\n");
     
     if (!(dist > cutoff*cutoff || (anchcounts[0]==0) || (hingcounts[0]==0))) {
 
-    if (((m = idhi) >= 0) && (hdir!=0)){
-
-      atom->type[m]=1;
+    if (((m = idhi) >= 0)){
 
       // Deleting old SMC bond
       for (int ibond = 0; ibond < atom->num_bond[m]; ibond++) {
@@ -401,17 +408,41 @@ void FixSMC::post_integrate()
           break;
         }
       }
+
+      if (temphdir==0){
+      
+      // if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Changing bond keeping hinge fixed \n");
+
+      bool create = 1;
+      for (int ibond = 0; ibond < atom->num_bond[m]; ibond++) {
+        if ((atom->bond_type[m][ibond] == smcbtype) || (atom->bond_type[m][ibond] == smcbitype)){
+          create = 0;
+        }
+      }
+
+      if (create) {
+      // Creating new SMC bond
+      if (atom->num_bond[m] == atom->bond_per_atom) error->one(FLERR, "New bond exceeded bonds per atom limit of {} in create_bonds", atom->bond_per_atom);
+      atom->bond_type[m][atom->num_bond[m]] = smcbtype;
+      atom->bond_atom[m][atom->num_bond[m]] = (anch[i]+tempadir);
+      atom->num_bond[m]++;
+      }
+
+      }
+
+      else atom->type[m]=1;
+
     }
 
-    if (((man = idan) >= 0) && (adir!=0)){
+    if (((man = idan) >= 0) && (tempadir!=0)){
       atom->type[man] = 1;
     }
 
-    if (((mannew = idnewan) >= 0) && (adir!=0)){
+    if (((mannew = idnewan) >= 0) && (tempadir!=0)){
       atom->type[mannew] = smctype;
     }
 
-    if (((mnew = idnewhi) >= 0) && (hdir!=0)){
+    if (((mnew = idnewhi) >= 0) && (temphdir!=0)){
       atom->type[mnew]=smctype;
       
       bool create = 1;
@@ -425,13 +456,13 @@ void FixSMC::post_integrate()
       // Creating new SMC bond
       if (atom->num_bond[mnew] == atom->bond_per_atom) error->one(FLERR, "New bond exceeded bonds per atom limit of {} in create_bonds", atom->bond_per_atom);
       atom->bond_type[mnew][atom->num_bond[mnew]] = smcbtype;
-      atom->bond_atom[mnew][atom->num_bond[mnew]] = (anch[i]+adir);
+      atom->bond_atom[mnew][atom->num_bond[mnew]] = (anch[i]+tempadir);
       atom->num_bond[mnew]++;
       }
       }
 
-      anch[i]+=adir;
-      hing[i]+=hdir;
+      anch[i]+=tempadir;
+      hing[i]+=temphdir;
 
       }
 
@@ -445,6 +476,7 @@ void FixSMC::post_integrate()
   memory->destroy(hingcount);
   memory->destroy(hingcounts);
   memory->destroy(anchcounts);
+
   return;
 
   }
