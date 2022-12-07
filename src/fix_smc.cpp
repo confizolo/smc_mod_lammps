@@ -120,7 +120,7 @@ FixSMC::~FixSMC()
     idan = atom->map(anch[i]);
 
     // Check if hinge is in the current processor and delete bonds/reset to original type
-    if (((m = idhi) >= 0) && (hdir!=0)){
+    if (((m = idhi) >= 0) && (idhi<atom->nlocal)){
 
       atom->type[m]=1;
 
@@ -142,7 +142,7 @@ FixSMC::~FixSMC()
       }
     }
     // Check if anchor is in the current processor and reset the type
-    if ((man = idan) >= 0) {
+    if (((man = idan) >= 0) && (idan<atom->nlocal)) {
         atom->type[man] = 1;
     }
 
@@ -243,7 +243,7 @@ void FixSMC::post_integrate()
     idan = atom->map(anch[i]);
 
     // Change type to defined hinge and anchor beads if in processor
-    if ((m = idhi) >= 0){
+    if (((m = idhi) >= 0) && (idhi<atom->nlocal)){
 
       atom->type[m] = smctype;
       // Creating new SMC bond
@@ -253,7 +253,7 @@ void FixSMC::post_integrate()
       atom->num_bond[m]++;
     }
     // Change bead anchor type to smctype
-    if ((man = idan) >= 0) {
+    if (((man = idan) >= 0) && (idan<atom->nlocal)) {
         atom->type[man] = smctype;
     }
   }
@@ -305,7 +305,6 @@ void FixSMC::post_integrate()
     
   for (int i = 0; i < smcnum; i++)
   {
-    
     // Temporaneous direction if the smc is going towards the polymer end or another smc bead
     tempadir = adir;
     temphdir = hdir;
@@ -337,6 +336,8 @@ void FixSMC::post_integrate()
 
     if(flag){continue;}
 
+    if ((debug)) utils::logmesg(lmp, "SMC {} Current anchor {}, current hinge {}; next anchor {}, next hinge {} \n", i,anch[i],hing[i],anch[i]+tempadir,hing[i]+temphdir);
+    
     idnewhi = atom->map(hing[i]+temphdir);
     idhi = atom->map(hing[i]);
     idnewan = atom->map(anch[i]+tempadir);
@@ -384,12 +385,13 @@ void FixSMC::post_integrate()
       xyzhingtemp[2] += unwrap[2];
       hingcount[0]+=1;
     } 
-
+    
     memory->destroy(anchcounts);
     memory->create(anchcounts,1,"FixSMC::post_integrate()");
     memory->destroy(hingcounts);
     memory->create(hingcounts,1,"FixSMC::post_integrate()");
 
+    //MPI Barrier to avoid computational errors
     MPI_Barrier(world);
 
     MPI_Allreduce(xyzanchtemp, xyzanch, 3, MPI_DOUBLE, MPI_SUM, world);
@@ -411,8 +413,8 @@ void FixSMC::post_integrate()
     // Check if the distance is small enough to run the jump
     if (!(dist > cutoff*cutoff || (anchcounts[0]==0) || (hingcounts[0]==0))) {
 
-    if (((m = idhi) >= 0)){
 
+    if (((m = idhi) >= 0) && (idhi < atom->nlocal)){
       // Deleting old SMC bond
       for (int ibond = 0; ibond < atom->num_bond[m]; ibond++) {
         if ((atom->bond_type[m][ibond] == smcbtype) || (atom->bond_type[m][ibond] == smcbitype)){
@@ -456,16 +458,16 @@ void FixSMC::post_integrate()
 
     }
 
-    if (((man = idan) >= 0) && (tempadir!=0)){
+    if (((man = idan) >= 0) && (tempadir!=0) && (idan < atom->nlocal)){
       atom->type[man] = 1;
     }
 
-    if (((mannew = idnewan) >= 0) && (tempadir!=0)){
+    if (((mannew = idnewan) >= 0) && (tempadir!=0) && (idnewan < atom->nlocal)){
       atom->type[mannew] = smctype;
     }
 
     // Create new bond between new hinge and anchor if not already present
-    if (((mnew = idnewhi) >= 0) && (temphdir!=0)){
+    if (((mnew = idnewhi) >= 0) && (temphdir!=0) && (idnewhi < atom->nlocal)){
       atom->type[mnew]=smctype;
       
       bool create = 1;
@@ -488,7 +490,7 @@ void FixSMC::post_integrate()
       hing[i]+=temphdir;
 
       }
-
+    MPI_Barrier(world);
   } 
 
   memory->destroy(xyzanch);
