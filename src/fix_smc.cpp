@@ -58,7 +58,7 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   if (nevery <= 0) error->all(FLERR,"Illegal fix smc command");
 
   next_reneighbor = -1;
-
+  restart_global = 1;
 
   int seed = utils::inumeric(FLERR,arg[4],false,lmp);
   random = new RanMars(lmp,seed);
@@ -295,7 +295,12 @@ void FixSMC::post_integrate()
   int tempadir = adir;
   int temphdir = hdir;
   bool flag=0;
-
+  
+  // for (int i = 0; i < smcnum; i++)
+  // { 
+  //   if ((debug)) utils::logmesg(lmp, "Anchors are" + std::to_string(anch[i]) + " " + std::to_string(hing[i]) + "\n");
+  // }
+    
   for (int i = 0; i < smcnum; i++)
   {
     
@@ -500,22 +505,28 @@ double FixSMC::memory_usage()
 /***********************************************************************/
 void FixSMC::write_restart(FILE *fp)
 {
-    int n = 0;
-    double list[4+2*smcnum];
-    list[n++] = ubuf(next_reneighbor).d;
-    list[n++] = ubuf(update->ntimestep).d;
+    if ((debug)) utils::logmesg(lmp, "Writing restart for fix_smc \n");
+
+    int restart_n = 0;
+    long restart_list[2+2*smcnum];
+
+    restart_list[restart_n++] = static_cast<long>(next_reneighbor);
+    restart_list[restart_n++] = static_cast<long>(update->ntimestep);
+    
     for (int i = 0; i < smcnum; i++)
     {
-      list[n++] = ubuf(anch[i]).d;
-      list[n++] = ubuf(hing[i]).d;
+      restart_list[restart_n++] = anch[i];
+      restart_list[restart_n++] = hing[i];
     }
 
-    if (comm->me == 0)
-    {
-        int size = n * sizeof(double);
-        fwrite(&size, sizeof(int), 1, fp);
-        fwrite(list, sizeof(double), n, fp);
+    if (comm->me == 0) {
+    int size = restart_n * sizeof(long);
+    fwrite(&size, sizeof(int), 1, fp);
+    fwrite(restart_list, sizeof(long), restart_n, fp);
     }
+
+    if ((debug)) utils::logmesg(lmp, "End of writing restart for fix_smc \n");
+
 }
 
 /* ----------------------------------------------------------------------
@@ -523,20 +534,25 @@ void FixSMC::write_restart(FILE *fp)
 ------------------------------------------------------------------------- */
 void FixSMC::restart(char *buf)
 {
-    int n = 0;
-    double *list = (double *)buf;
+    if ((debug)) utils::logmesg(lmp, "Reading restart for fix_smc \n");
 
-    next_reneighbor = (bigint)ubuf(list[n++]).i;
+    int restart_n = 0;
+    long *restart_list = (long *)buf;
 
-    bigint ntimestep_restart = (bigint)ubuf(list[n++]).i;
+    next_reneighbor = static_cast<bigint>(restart_list[restart_n++]);
+
+    bigint ntimestep_restart = static_cast<bigint>(restart_list[restart_n++]);
+
     if (ntimestep_restart != update->ntimestep)
         error->all(FLERR, "Must not reset timestep when restarting fix smc");
 
-    for (int i = 0; i < smcnum; i++)
+    for (int j = 0; j < smcnum; j++)
     {
-      anch[i] = (bigint)ubuf(list[n++]).i;
-      hing[i] = (bigint)ubuf(list[n++]).i;
+      anch[j] = static_cast<long>(restart_list[restart_n++]);     
+      hing[j] = static_cast<long>(restart_list[restart_n++]);     
     }
+
+    if ((debug)) utils::logmesg(lmp, "End of reading restart for fix_smc \n");
 
 }
 
