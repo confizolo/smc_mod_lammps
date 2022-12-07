@@ -48,7 +48,7 @@ static const char cite_fix_smc[] =
 
 FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   Fix(lmp, narg, arg),
-  anch(nullptr),hing(nullptr), smctype(0), smcbtype(0), smcnum(0), debug(1), list(nullptr), random(nullptr)
+  anch(nullptr),hing(nullptr), smctype(0), smcbtype(0), smcnum(0), debug(0), list(nullptr), random(nullptr)
 {
   if (lmp->citeme) lmp->citeme->add(cite_fix_smc);
 
@@ -97,8 +97,8 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   xyzanch = nullptr;
   xyzhing = nullptr;
 
-  anch = new bigint[smcnum];
-  hing = new bigint[smcnum];
+  anch = new long[smcnum];
+  hing = new long[smcnum];
 
 }
 
@@ -197,14 +197,15 @@ void FixSMC::post_integrate()
 
   else if (update->ntimestep == nevery){
   //Initialize a random SMC within 5 beads of distance
-
-  int i=0;
-  bool flag=0;
-
   int idhi;
   int idan;
   
   // Define a random anchor position inside a monodisperse system with L=1000
+  if (comm->me==0){
+
+  int i=0;
+  bool flag=0;
+
   while (i<smcnum)
   { 
     anch[i] = static_cast<int> (random->uniform() * lpol);
@@ -215,12 +216,30 @@ void FixSMC::post_integrate()
     flag =0;
     for (int j = 0; j < i; j++)
     {
-      if(((anch[i]==anch[j])||(hing[i]==hing[j])) || ((anch[i]==hing[j])||(hing[i]==anch[j]))){break;}
-      flag =1;
+      if(((anch[i]==anch[j])||(hing[i]==hing[j])) || ((anch[i]==hing[j])||(hing[i]==anch[j]))){flag =1; break;}
     }
-    
+
     if(flag){continue;}
 
+    i++;
+  }
+
+
+  }
+
+  MPI_Bcast(anch,smcnum,MPI_LONG,0,world);
+  MPI_Bcast(hing,smcnum,MPI_LONG,0,world);
+
+  MPI_Barrier(world);
+
+  for (int i = 0; i < smcnum; i++)
+  { 
+    if ((debug)) utils::logmesg(lmp, "Anchors are" + std::to_string(anch[i]) + " " + std::to_string(hing[i]) + "\n");
+  }
+    
+  for (int i = 0; i < smcnum; i++)
+  {
+    
     idhi = atom->map(hing[i]);
     idan = atom->map(anch[i]);
 
@@ -237,8 +256,8 @@ void FixSMC::post_integrate()
     if ((man = idan) >= 0) {
         atom->type[man] = smctype;
     }
-    i++;
   }
+  
 
   return;
   }
@@ -273,17 +292,22 @@ void FixSMC::post_integrate()
   int idnewan;
   int idan; 
 
+  bool flag=0;
+
   for (int i = 0; i < smcnum; i++)
   {
       
     // Check if we are going to the polymer border
-    if ((hing[i] + hdir)%lpol == 0) return;  
-    if ((anch[i] + adir)%lpol == 0) return;  
+    if ((hing[i] + hdir)%lpol == 0) continue;  
+    if ((anch[i] + adir)%lpol == 0) continue;  
 
+    flag=0;
     for (int j = 0; j < smcnum; j++)
     {
-      if((((anch[i]+adir)==anch[j])||((hing[i]+hdir)==hing[j])) || (((anch[i]+adir)==hing[j])||((hing[i]+hdir)==anch[j]))){return;}
+      if((((anch[i]+adir)==anch[j])||((hing[i]+hdir)==hing[j])) || (((anch[i]+adir)==hing[j])||((hing[i]+hdir)==anch[j]))){flag =1; break;}
     }
+
+    if(flag){continue;}
 
     idnewhi = atom->map(hing[i]+hdir);
     idhi = atom->map(hing[i]);
