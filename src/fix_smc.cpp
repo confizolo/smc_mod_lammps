@@ -204,8 +204,8 @@ void FixSMC::post_integrate()
   { 
     anch[i] = static_cast<int> (random->uniform() * atom->natoms);
       
-    if ((anch[i]+1)%lpol==0){anch[i]-=1}
-    if ((anch[i]-1)%lpol==0){anch[i]+=1}
+    if ((anch[i]+1)%lpol==0){anch[i]-=1;}
+    if ((anch[i]-1)%lpol==0){anch[i]+=1;}
 
     if (hdir!=0) hing[i] = anch[i] + 2*hdir/abs(hdir);
     else hing[i] = anch[i] - 2*adir/abs(adir);
