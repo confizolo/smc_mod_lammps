@@ -48,7 +48,19 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   anch(nullptr),hing(nullptr), smctype(0), smcbtype(0), smcnum(0), debug(0), random(nullptr)
 {
   if (lmp->citeme) lmp->citeme->add(cite_fix_smc);
-
+  // Number of arguments for the fix. The first three arguments are parsed by Fix base class constructor.
+  // The rest are specific to this fix. 11 are mandatory
+  // 4. nevery: Attempt the jump every nevery iteration
+  // 5. seed: random seed
+  // 6. prob: probability to attempt the jump
+  // 7. lpol: length of polymer(s)
+  // 8. adir: attempted movement of anchor (next attempted atom id: current anchor + adir)
+  // 9. hdir: attempted movement of hinge (next attempted atom id: current hinge + hdir)
+  // 10. smcnum: number of deployed smcs
+  // 11. smctype: atom type of anchoring beads
+  // 11. smcbtype: bond type of anchoring beads after the first deployment
+  // 11. smcbitype: bond type of anchoring beads at the first deployment
+  // 11. cutoff: distance cutoff for attempted movements (Jump is accepted only if distance between new anchor and hinge is below the cutoff)
   if (narg != 14) error->all(FLERR,"Illegal fix smc command");
 
   nevery = utils::inumeric(FLERR,arg[3],false,lmp);
