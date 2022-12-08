@@ -9,7 +9,7 @@
 
 #SBATCH --mem-per-cpu=512
 LAMMPS=""
-LAMMPSparallel="/Users/s2469797/Documents/lammps_testing/build/lmp"
+LAMMPSparallel="/Users/lammps/build/lmp"
 
 lscript="test.lammps"
 

@@ -204,15 +204,18 @@ void FixSMC::post_integrate()
   { 
     anch[i] = static_cast<int> (random->uniform() * atom->natoms);
       
+    // Check if the smc is wrongly positioned (border conditions)
     if ((anch[i]+1)%lpol==0){anch[i]-=1;}
     if ((anch[i]-1)%lpol==1){anch[i]+=1;}
     if ((anch[i]+1)%lpol==1){anch[i]-=2;}
     if ((anch[i]-1)%lpol==0){anch[i]+=2;}
 
+    // Instantiate the bead according to the direction
     if (hdir!=0) hing[i] = anch[i] + 2*hdir/abs(hdir);
     else hing[i] = anch[i] - 2*adir/abs(adir);
 
     flag =0;
+    // Check if we are superimposing other beads
     for (int j = 0; j < i; j++)
     {
       if(((anch[i]==anch[j])||(hing[i]==hing[j])) || ((anch[i]==hing[j])||(hing[i]==anch[j]))){flag =1; break;}
@@ -226,6 +229,7 @@ void FixSMC::post_integrate()
 
   }
 
+  // Cast the chosen position to each processor
   MPI_Bcast(anch,smcnum,MPI_LONG,0,world);
   MPI_Bcast(hing,smcnum,MPI_LONG,0,world);
 
@@ -236,6 +240,7 @@ void FixSMC::post_integrate()
   //   if ((debug)) utils::logmesg(lmp, "Anchors are" + std::to_string(anch[i]) + " " + std::to_string(hing[i]) + "\n");
   // }
     
+  // Create bonds according to chosen beads
   for (int i = 0; i < smcnum; i++)
   {
     
@@ -305,7 +310,7 @@ void FixSMC::post_integrate()
     
   for (int i = 0; i < smcnum; i++)
   {
-    // Temporaneous direction if the smc is going towards the polymer end or another smc bead
+    // Temporary direction if the smc is going towards the polymer end or another smc bead
     tempadir = adir;
     temphdir = hdir;
 
@@ -391,7 +396,7 @@ void FixSMC::post_integrate()
     memory->destroy(hingcounts);
     memory->create(hingcounts,1,"FixSMC::post_integrate()");
 
-    //MPI Barrier to avoid computational errors
+    //MPI Barrier to avoid computational errors due to value collection
     MPI_Barrier(world);
 
     MPI_Allreduce(xyzanchtemp, xyzanch, 3, MPI_DOUBLE, MPI_SUM, world);
@@ -458,10 +463,12 @@ void FixSMC::post_integrate()
 
     }
 
+    // Changing type of the old anchor
     if (((man = idan) >= 0) && (tempadir!=0) && (idan < atom->nlocal)){
       atom->type[man] = 1;
     }
 
+    // Changing type of the new anchor
     if (((mannew = idnewan) >= 0) && (tempadir!=0) && (idnewan < atom->nlocal)){
       atom->type[mannew] = smctype;
     }
@@ -490,6 +497,7 @@ void FixSMC::post_integrate()
       hing[i]+=temphdir;
 
       }
+    // Barrier to check that each processor has defined correctly each smc
     MPI_Barrier(world);
   } 
 
@@ -510,19 +518,19 @@ void FixSMC::post_integrate()
 
 
 /* ----------------------------------------------------------------------
-   memory usage of alist
+   memory usage of hing and anch arrays
 ------------------------------------------------------------------------- */
 
 double FixSMC::memory_usage()
 {
-  double bytes = 0;
+  double bytes = 2 * smcnum *  sizeof(long);
   return bytes;
 }
 
 
-/***********************************************************************/
+/*---------------------------------------------------------------------*/
 /* Needed to write a restart file that can continue with the simulation*/
-/***********************************************************************/
+/*---------------------------------------------------------------------*/
 void FixSMC::write_restart(FILE *fp)
 {
     if ((debug)) utils::logmesg(lmp, "Writing restart for fix_smc \n");
