@@ -1,7 +1,7 @@
 # SMC Fix for LAMMPS
 
 # Introduction 
-The following repository contains code related to the development of a Fix for LAMMPS for loop extruding proteins (see [here](10.7554/eLife.14864), [here](10.1016/j.bpj.2021.11.015) and [here](10.1016/j.celrep.2016.04.085) for reference). Development started in 11/22 and used and was based on LAMMPS(23 Jun 2022 - Update 2)(source [here](https://github.com/lammps/lammps/commit/88c8b6ec6feac6740d140393a0d409437f637f8b)). 
+The following repository contains code related to the development of a Fix for LAMMPS for loop extruding proteins (see [here](10.7554/eLife.14864), [here](10.1016/j.bpj.2021.11.015) and [here](10.1016/j.celrep.2016.04.085) for reference). Development started in 11/22 and based on LAMMPS(23 Jun 2022 - Update 2)(source [here](https://github.com/lammps/lammps/commit/88c8b6ec6feac6740d140393a0d409437f637f8b)). 
 # What can Fix SMC do?
 - Deploy multiple loop extruders
 - Loop extrude along multiple directions

@@ -11,6 +11,9 @@
    See the README file in the top-level LAMMPS directory.
 ------------------------------------------------------------------------- */
 
+/* ----------------------------------------------------------------------
+   Contributing authors: Filippo Conforto
+------------------------------------------------------------------------- */
 #ifdef FIX_CLASS
 // clang-format off
 FixStyle(smc,FixSMC);
