@@ -50,7 +50,7 @@ static const char cite_fix_smc[] =
 
 FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   Fix(lmp, narg, arg),
-  anch(nullptr),hing(nullptr), smctype(0), smcbtype(0), smcnum(0), debug(0), random(nullptr), connFixName("nofix")
+  anch(nullptr),hing(nullptr), smctype(0), smcbtype(0), smcnum(0), debug(0), random(nullptr)
 {
   if (lmp->citeme) lmp->citeme->add(cite_fix_smc);
   // Number of arguments for the fix. The first three arguments are parsed by Fix base class constructor.
@@ -120,7 +120,7 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
         connFixName = new char[5];
         connFixName = "nofix";
   }
-  
+
   // To get a different random number every time the program is executed
   srand(time(NULL) * seed);
   
@@ -667,7 +667,16 @@ void FixSMC::restart(char *buf)
       hing[j] = static_cast<long>(restart_list[restart_n++]);     
     }
 
-    if ((debug)) utils::logmesg(lmp, "End of reading restart for fix_smc \n");
+  // Store the connected Fix ID pointer
+  if (strcmp(connFixName, "nofix") == 0){
+    connFix == nullptr;
+  }
+  else{
+    connFix = modify->get_fix_by_id(connFixName);
+    if (!connFix) error->all(FLERR, "Illegal ausiliary Fix");
+  }
+
+  if ((debug)) utils::logmesg(lmp, "End of reading restart for fix_smc \n");
 
 }
 
