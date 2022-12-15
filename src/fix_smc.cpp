@@ -115,6 +115,12 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
     connFixName = new char[static_cast<int>(sizeof(arg[14]) / sizeof(char))];
     std::copy(arg[14],arg[14]+static_cast<int>(sizeof(arg[14])/sizeof(char)),connFixName);
   }
+  else
+  {
+        connFixName = new char[5];
+        connFixName = "nofix";
+  }
+  
   // To get a different random number every time the program is executed
   srand(time(NULL) * seed);
   
