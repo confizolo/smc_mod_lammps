@@ -50,6 +50,7 @@ namespace LAMMPS_NS
       bool debug;
       class RanMars *random;
       class Fix *connFix;
+      char *connFixName;
    };
 
 } // namespace LAMMPS_NS

@@ -38,6 +38,7 @@
 #include <cmath>
 #include <cstring>
 #include <utils.h>
+#include <iostream>
 
 using namespace LAMMPS_NS;
 using namespace FixConst;
@@ -49,7 +50,7 @@ static const char cite_fix_smc[] =
 
 FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   Fix(lmp, narg, arg),
-  anch(nullptr),hing(nullptr), smctype(0), smcbtype(0), smcnum(0), debug(0), random(nullptr)
+  anch(nullptr),hing(nullptr), smctype(0), smcbtype(0), smcnum(0), debug(0), random(nullptr), connFixName("nofix")
 {
   if (lmp->citeme) lmp->citeme->add(cite_fix_smc);
   // Number of arguments for the fix. The first three arguments are parsed by Fix base class constructor.
@@ -67,7 +68,7 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   // 14. cutoff: distance cutoff for attempted movements (Jump is accepted only if distance between new anchor and hinge is below the cutoff)
   // 15. FixID: Name of ID to get informations about 
 
-  if (narg < 14) error->all(FLERR,"Illegal fix smc command");
+  if ((narg != 14) && (narg!=15)) error->all(FLERR,"Illegal fix smc command");
 
   nevery = utils::inumeric(FLERR,arg[3],false,lmp);
   if (nevery <= 0) error->all(FLERR,"Illegal fix smc command");
@@ -110,14 +111,10 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   if (cutoff <0)
             error->all(FLERR, "Illegal fix topo2 command");
 
-  // Store the connected Fix ID pointer
-  if (narg == 15){
-    connFix = modify->get_fix_by_id(arg[14]);
+  if (narg==15){
+    connFixName = new char[static_cast<int>(sizeof(arg[14]) / sizeof(char))];
+    std::copy(arg[14],arg[14]+static_cast<int>(sizeof(arg[14])/sizeof(char)),connFixName);
   }
-  else{
-    connFix = nullptr;
-  }
-
   // To get a different random number every time the program is executed
   srand(time(NULL) * seed);
   
@@ -181,6 +178,7 @@ FixSMC::~FixSMC()
   delete random;
   delete anch;
   delete hing;
+  delete connFixName;
   memory->destroy(xyzanch);
   memory->destroy(xyzhing);  
 
@@ -202,7 +200,16 @@ void FixSMC::init()
 
   if (force->pair == nullptr || force->bond == nullptr)
     error->all(FLERR,"Fix smc requires pair and bond styles");
-  
+
+  // Store the connected Fix ID pointer
+  if (strcmp(connFixName, "nofix") == 0){
+    connFix == nullptr;
+  }
+  else{
+    connFix = modify->get_fix_by_id(connFixName);
+    if (!connFix) error->all(FLERR, "Illegal ausiliary Fix");
+  }
+
   for (int i = 0; i < smcnum; i++)
   {
     hing[i] = atom->natoms+1;
@@ -413,7 +420,7 @@ void FixSMC::post_integrate()
 
     if(flag){continue;}
 
-    if ((debug)) utils::logmesg(lmp, "SMC {} Current anchor {}, current hinge {}; next anchor {}, next hinge {} \n", i,anch[i],hing[i],anch[i]+tempadir,hing[i]+temphdir);
+    // if ((debug)) utils::logmesg(lmp, "SMC {} Current anchor {}, current hinge {}; next anchor {}, next hinge {} \n", i,anch[i],hing[i],anch[i]+tempadir,hing[i]+temphdir);
     
     idnewhi = atom->map(hing[i]+temphdir);
     idhi = atom->map(hing[i]);
@@ -605,7 +612,7 @@ double FixSMC::memory_usage()
 /*---------------------------------------------------------------------*/
 void FixSMC::write_restart(FILE *fp)
 {
-    if ((debug)) utils::logmesg(lmp, "Writing restart for fix_smc \n");
+    // if ((debug)) utils::logmesg(lmp, "Writing restart for fix_smc \n");
 
     int restart_n = 0;
     long restart_list[2+2*smcnum];
@@ -671,18 +678,20 @@ Returns position of i smc hinge or anchor depending on the flag
 double FixSMC::compute_array(int i, int flag){
   int rflag;   
   if (hdir!=0) {
-    rflag = flag*hdir/abs(hdir);
+    rflag = hdir/abs(hdir);
     }
     else {
-    rflag = -flag*adir/abs(adir);
+    rflag = -adir/abs(adir);
     }
 
   rflag = (1+rflag/(abs(rflag)))/2;
 
-  if (rflag){
-    return hing[i];
+  if (flag){
+    if (rflag) return hing[i];
+    else return anch[i];
   }
   else{
-    return anch[i];
+    if (rflag) return anch[i];
+    else return hing[i];
   }
 }
