@@ -39,6 +39,8 @@ namespace LAMMPS_NS
       double memory_usage() override;
       void write_restart(FILE *fp) override;
       void restart(char *) override;
+      double compute_array(int, int) override;
+      double compute_scalar() override;
 
    private:
       long *anch, *hing;
@@ -47,6 +49,7 @@ namespace LAMMPS_NS
       double *xyzanch, *xyzhing;
       bool debug;
       class RanMars *random;
+      class Fix *connFix;
    };
 
 } // namespace LAMMPS_NS

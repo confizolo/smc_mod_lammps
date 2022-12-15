@@ -62,16 +62,22 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   // 9. hdir: attempted movement of hinge (next attempted atom id: current hinge + hdir)
   // 10. smcnum: number of deployed smcs
   // 11. smctype: atom type of anchoring beads
-  // 11. smcbtype: bond type of anchoring beads after the first deployment
-  // 11. smcbitype: bond type of anchoring beads at the first deployment
-  // 11. cutoff: distance cutoff for attempted movements (Jump is accepted only if distance between new anchor and hinge is below the cutoff)
-  if (narg != 14) error->all(FLERR,"Illegal fix smc command");
+  // 12. smcbtype: bond type of anchoring beads after the first deployment
+  // 13. smcbitype: bond type of anchoring beads at the first deployment
+  // 14. cutoff: distance cutoff for attempted movements (Jump is accepted only if distance between new anchor and hinge is below the cutoff)
+  // 15. FixID: Name of ID to get informations about 
+
+  if (narg < 14) error->all(FLERR,"Illegal fix smc command");
 
   nevery = utils::inumeric(FLERR,arg[3],false,lmp);
   if (nevery <= 0) error->all(FLERR,"Illegal fix smc command");
 
   // Flag to activate dump in restart file of fix smc structure
   restart_global = 1;
+
+  // Activate flag for array and scalar returning
+  scalar_flag = 1;
+  array_flag = 1;
 
   int seed = utils::inumeric(FLERR,arg[4],false,lmp);
   random = new RanMars(lmp,seed);
@@ -103,6 +109,14 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   cutoff = utils::numeric(FLERR, arg[13], false, lmp);
   if (cutoff <0)
             error->all(FLERR, "Illegal fix topo2 command");
+
+  // Store the connected Fix ID pointer
+  if (narg == 15){
+    connFix = modify->get_fix_by_id(arg[14]);
+  }
+  else{
+    connFix = nullptr;
+  }
 
   // To get a different random number every time the program is executed
   srand(time(NULL) * seed);
@@ -188,7 +202,13 @@ void FixSMC::init()
 
   if (force->pair == nullptr || force->bond == nullptr)
     error->all(FLERR,"Fix smc requires pair and bond styles");
-
+  
+  for (int i = 0; i < smcnum; i++)
+  {
+    hing[i] = atom->natoms+1;
+    anch[i] = atom->natoms+1;
+  }
+  
 }
 
 
@@ -237,6 +257,25 @@ void FixSMC::post_integrate()
       if(((anch[i]==anch[j])||(hing[i]==hing[j])) || ((anch[i]==hing[j])||(hing[i]==anch[j]))){flag =1; break;}
     }
 
+    if (connFix)
+    {
+        // Check for conflicts with connected fix
+        for (int k = 0; k < connFix->compute_scalar(); k++)
+        {
+            if (connFix->compute_array(k, 1) > atom->natoms) continue;
+            if (((anch[i]) >= connFix->compute_array(k, 0)) && ((anch[i]) < (connFix->compute_array(k, 1))))
+            {
+              flag =1;
+              break;
+            }
+            if (((hing[i]) >= connFix->compute_array(k, 0)) && ((hing[i]) < (connFix->compute_array(k, 1))))
+            {
+              flag=1;
+              break;
+            }
+        }
+    }
+
     if(flag){continue;}
 
     i++;
@@ -279,8 +318,8 @@ void FixSMC::post_integrate()
     }
   }
   
-
   return;
+
   }
   
   else{
@@ -343,6 +382,23 @@ void FixSMC::post_integrate()
     else{
       if ((anch[i] + adir)%lpol == 1) tempadir = 0;
     }
+
+    if (connFix)
+    {
+        // Check for conflicts with connected fix
+        for (int k = 0; k < connFix->compute_scalar(); k++)
+        {
+            if (((anch[i] + adir)>= connFix->compute_array(k, 0)) && ( (anch[i] + adir)< (connFix->compute_array(k, 1))))
+            {
+              tempadir = 0;
+            }
+            if (((hing[i] + hdir)>= connFix->compute_array(k, 0)) && ( (hing[i] + hdir)< (connFix->compute_array(k, 1))))
+            {
+              temphdir = 0;
+            }
+        }
+    }
+
     if ((tempadir==0) && (temphdir==0)) continue;
 
     // Check if the new movement is forbidden because of superposition of SMCs
@@ -602,3 +658,31 @@ void FixSMC::restart(char *buf)
 
 }
 
+/*
+Returns number of smcs
+*/
+double FixSMC::compute_scalar(){
+  return smcnum;
+}
+ 
+/*
+Returns position of i smc hinge or anchor depending on the flag 
+*/
+double FixSMC::compute_array(int i, int flag){
+  int rflag;   
+  if (hdir!=0) {
+    rflag = flag*hdir/abs(hdir);
+    }
+    else {
+    rflag = -flag*adir/abs(adir);
+    }
+
+  rflag = (1+rflag/(abs(rflag)))/2;
+
+  if (rflag){
+    return hing[i];
+  }
+  else{
+    return anch[i];
+  }
+}
