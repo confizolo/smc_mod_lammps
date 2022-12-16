@@ -130,6 +130,11 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   anch = new long[smcnum];
   hing = new long[smcnum];
 
+  for (int i = 0; i < smcnum; i++)
+  {
+    hing[i] = atom->natoms+1;
+    anch[i] = atom->natoms+1;
+  }
 }
 
 /* ---------------------------------------------------------------------- */
@@ -214,12 +219,6 @@ void FixSMC::init()
   else{
     connFix = modify->get_fix_by_id(connFixName);
     if (!connFix) error->all(FLERR, "Illegal ausiliary Fix");
-  }
-
-  for (int i = 0; i < smcnum; i++)
-  {
-    hing[i] = atom->natoms+1;
-    anch[i] = atom->natoms+1;
   }
   
 }
@@ -664,17 +663,8 @@ void FixSMC::restart(char *buf)
     for (int j = 0; j < smcnum; j++)
     {
       anch[j] = static_cast<long>(restart_list[restart_n++]);     
-      hing[j] = static_cast<long>(restart_list[restart_n++]);     
+      hing[j] = static_cast<long>(restart_list[restart_n++]);    
     }
-
-  // Store the connected Fix ID pointer
-  if (strcmp(connFixName, "nofix") == 0){
-    connFix == nullptr;
-  }
-  else{
-    connFix = modify->get_fix_by_id(connFixName);
-    if (!connFix) error->all(FLERR, "Illegal ausiliary Fix");
-  }
 
   if ((debug)) utils::logmesg(lmp, "End of reading restart for fix_smc \n");
 
