@@ -66,9 +66,10 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   // 12. smcbtype: bond type of anchoring beads after the first deployment
   // 13. smcbitype: bond type of anchoring beads at the first deployment
   // 14. cutoff: distance cutoff for attempted movements (Jump is accepted only if distance between new anchor and hinge is below the cutoff)
+  // 14. initmode: random or distributed according to uswe
   // 15. FixID: Name of ID to get informations about 
 
-  if ((narg != 14) && (narg!=15)) error->all(FLERR,"Illegal fix smc command");
+  if ((narg != 15) && (narg!=16)) error->all(FLERR,"Illegal fix smc command");
 
   nevery = utils::inumeric(FLERR,arg[3],false,lmp);
   if (nevery <= 0) error->all(FLERR,"Illegal fix smc command");
@@ -109,16 +110,30 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
 
   cutoff = utils::numeric(FLERR, arg[13], false, lmp);
   if (cutoff <0)
-            error->all(FLERR, "Illegal fix topo2 command");
+            error->all(FLERR, "Illegal fix smc command");
 
-  if (narg==15){
-    connFixName = new char[static_cast<int>(sizeof(arg[14]) / sizeof(char))];
-    std::copy(arg[14],arg[14]+static_cast<int>(sizeof(arg[14])/sizeof(char)),connFixName);
+  if (narg==16){
+    connFixName = new char[static_cast<int>(sizeof(arg[15]) / sizeof(char))];
+    std::copy(arg[15],arg[15]+static_cast<int>(sizeof(arg[15])/sizeof(char)),connFixName);
   }
   else
   {
         connFixName = new char[5];
         connFixName = "nofix";
+  }
+
+  initmode = 0;
+
+  if (strcmp(arg[14], "random") == 0)
+  {
+    initmode = 0;
+  }
+  else if (strcmp(arg[14], "distributed") == 0)
+  {
+    initmode = 1;
+  }
+  else{
+    error->all(FLERR, "Illegal fix smc command, initmode not present");
   }
 
   // To get a different random number every time the program is executed
@@ -250,8 +265,13 @@ void FixSMC::post_integrate()
 
   while (i<smcnum)
   { 
+    if (initmode==0){
     anch[i] = static_cast<int> (random->uniform() * atom->natoms);
-      
+    }
+    if (initmode==1){
+    if (i*lpol >= atom->natoms) static_cast<int> (random->uniform() * atom->natoms);
+    else anch[i] = static_cast<int> (random->uniform() * lpol + i*lpol);
+    }
     // Check if the smc is wrongly positioned (border conditions)
     if ((anch[i]+1)%lpol==0){anch[i]-=1;}
     if ((anch[i]-1)%lpol==1){anch[i]+=1;}
