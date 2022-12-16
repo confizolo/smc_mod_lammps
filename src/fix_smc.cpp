@@ -33,7 +33,7 @@
 #include "neigh_list.h"
 #include "neighbor.h"
 #include "pair.h"
-#include "random_mars.h"
+#include "random_park.h"
 #include "update.h"
 #include <cmath>
 #include <cstring>
@@ -50,7 +50,7 @@ static const char cite_fix_smc[] =
 
 FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   Fix(lmp, narg, arg),
-  anch(nullptr),hing(nullptr), smctype(0), smcbtype(0), smcnum(0), debug(0), random(nullptr)
+  anch(nullptr),hing(nullptr), smctype(0), smcbtype(0), smcnum(0), debug(0)
 {
   if (lmp->citeme) lmp->citeme->add(cite_fix_smc);
   // Number of arguments for the fix. The first three arguments are parsed by Fix base class constructor.
@@ -66,8 +66,8 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   // 12. smcbtype: bond type of anchoring beads after the first deployment
   // 13. smcbitype: bond type of anchoring beads at the first deployment
   // 14. cutoff: distance cutoff for attempted movements (Jump is accepted only if distance between new anchor and hinge is below the cutoff)
-  // 14. initmode: random or distributed according to uswe
-  // 15. FixID: Name of ID to get informations about 
+  // 15. initmode: random or distributed according to uswe
+  // 16. FixID: Name of ID to get informations about 
 
   if ((narg != 15) && (narg!=16)) error->all(FLERR,"Illegal fix smc command");
 
@@ -81,8 +81,8 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   scalar_flag = 1;
   array_flag = 1;
 
-  int seed = utils::inumeric(FLERR,arg[4],false,lmp);
-  random = new RanMars(lmp,seed);
+  seed = utils::inumeric(FLERR,arg[4],false,lmp);
+  random_equal = new RanPark(lmp,seed);
   
   prob = utils::numeric(FLERR, arg[5], false, lmp);
   if (prob < 0.0 || prob > 1.0)
@@ -201,7 +201,7 @@ FixSMC::~FixSMC()
 
   }
   
-  delete random;
+  delete random_equal;
   delete anch;
   delete hing;
   delete connFixName;
@@ -266,11 +266,11 @@ void FixSMC::post_integrate()
   while (i<smcnum)
   { 
     if (initmode==0){
-    anch[i] = static_cast<int> (random->uniform() * atom->natoms);
+    anch[i] = static_cast<int> (random_equal->uniform() * atom->natoms);
     }
     if (initmode==1){
-    if (i*lpol >= atom->natoms) static_cast<int> (random->uniform() * atom->natoms);
-    else anch[i] = static_cast<int> (random->uniform() * lpol + i*lpol);
+    if (i*lpol >= atom->natoms) static_cast<int> (random_equal->uniform() * atom->natoms);
+    else anch[i] = static_cast<int> (random_equal->uniform() * lpol + i*lpol);
     }
     // Check if the smc is wrongly positioned (border conditions)
     if ((anch[i]+1)%lpol==0){anch[i]-=1;}
@@ -356,9 +356,6 @@ void FixSMC::post_integrate()
   
   else{
 
-  // Draw a random number for the jump attempt
-  if (random->uniform() > prob) return;
-  
   // Return if the smcs are still
   if ((hdir==0) && (adir==0)) return;
 
@@ -397,6 +394,17 @@ void FixSMC::post_integrate()
     
   for (int i = 0; i < smcnum; i++)
   {
+    // Draw a random number for the jump attempt
+    double rand;
+    if (comm->me==0) rand = random_equal->uniform();
+    MPI_Bcast(&rand,1,MPI_DOUBLE,0,world);
+
+    if (rand > prob){
+      continue;
+    }
+
+    utils::logmesg(lmp,"Passed {} in proc {} with rand {} \n",i,comm->me,rand);
+
     // Temporary direction if the smc is going towards the polymer end or another smc bead
     tempadir = adir;
     temphdir = hdir;

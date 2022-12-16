@@ -44,11 +44,11 @@ namespace LAMMPS_NS
 
    private:
       long *anch, *hing;
-      int smctype, smcbtype, smcbitype, lpol, adir, hdir, smcnum, initmode;
+      int seed, smctype, smcbtype, smcbitype, lpol, adir, hdir, smcnum, initmode;
       double prob, cutoff;
       double *xyzanch, *xyzhing;
       bool debug;
-      class RanMars *random;
+      class RanPark *random_equal;
       class Fix *connFix;
       char *connFixName;
    };
