@@ -403,8 +403,6 @@ void FixSMC::post_integrate()
       continue;
     }
 
-    utils::logmesg(lmp,"Passed {} in proc {} with rand {} \n",i,comm->me,rand);
-
     // Temporary direction if the smc is going towards the polymer end or another smc bead
     tempadir = adir;
     temphdir = hdir;
