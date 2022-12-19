@@ -145,6 +145,8 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   anch = new long[smcnum];
   hing = new long[smcnum];
 
+  connFix = nullptr;
+  
   for (int i = 0; i < smcnum; i++)
   {
     hing[i] = atom->natoms+1;
