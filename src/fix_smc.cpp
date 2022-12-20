@@ -207,6 +207,7 @@ FixSMC::~FixSMC()
   delete anch;
   delete hing;
   delete connFixName;
+  delete connFix;
   memory->destroy(xyzanch);
   memory->destroy(xyzhing);  
 
