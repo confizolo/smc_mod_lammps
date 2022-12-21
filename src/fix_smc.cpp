@@ -50,7 +50,7 @@ static const char cite_fix_smc[] =
 
 FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   Fix(lmp, narg, arg),
-  anch(nullptr),hing(nullptr), smctype(0), smcbtype(0), smcnum(0), debug(0)
+  anch(nullptr),hing(nullptr), smctype(0), smcbtype(0), smcnum(0), debug(0), connFix(nullptr)
 {
   if (lmp->citeme) lmp->citeme->add(cite_fix_smc);
   // Number of arguments for the fix. The first three arguments are parsed by Fix base class constructor.
@@ -82,7 +82,6 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
   array_flag = 1;
 
   seed = utils::inumeric(FLERR,arg[4],false,lmp);
-  random_equal = new RanPark(lmp,seed);
   
   prob = utils::numeric(FLERR, arg[5], false, lmp);
   if (prob < 0.0 || prob > 1.0)
@@ -144,9 +143,9 @@ FixSMC::FixSMC(LAMMPS *lmp, int narg, char **arg) :
 
   anch = new long[smcnum];
   hing = new long[smcnum];
-
-  connFix = nullptr;
   
+  random_equal = new RanPark(lmp,seed);
+
   for (int i = 0; i < smcnum; i++)
   {
     hing[i] = atom->natoms+1;
@@ -208,6 +207,7 @@ FixSMC::~FixSMC()
   delete hing;
   delete connFixName;
   delete connFix;
+
   memory->destroy(xyzanch);
   memory->destroy(xyzhing);  
 
@@ -232,7 +232,7 @@ void FixSMC::init()
 
   // Store the connected Fix ID pointer
   if (strcmp(connFixName, "nofix") == 0){
-    connFix == nullptr;
+    connFix = nullptr;
   }
   else{
     connFix = modify->get_fix_by_id(connFixName);
@@ -648,23 +648,25 @@ void FixSMC::write_restart(FILE *fp)
 {
     // if ((debug)) utils::logmesg(lmp, "Writing restart for fix_smc \n");
 
-    int restart_n = 0;
-    long restart_list[2+2*smcnum];
+    int rn = 0;
+    long rlist[3+2*smcnum];
 
-    restart_list[restart_n++] = static_cast<long>(next_reneighbor);
-    restart_list[restart_n++] = static_cast<long>(update->ntimestep);
+    rlist[rn++] = static_cast<long>(next_reneighbor);
+    rlist[rn++] = static_cast<long>(update->ntimestep);
     
+    rlist[rn++] = static_cast<long>(smcnum);
+
     // Saving SMCs positions
     for (int i = 0; i < smcnum; i++)
     {
-      restart_list[restart_n++] = anch[i];
-      restart_list[restart_n++] = hing[i];
+      rlist[rn++] = anch[i];
+      rlist[rn++] = hing[i];
     }
 
     if (comm->me == 0) {
-    int size = restart_n * sizeof(long);
+    int size = rn * sizeof(long);
     fwrite(&size, sizeof(int), 1, fp);
-    fwrite(restart_list, sizeof(long), restart_n, fp);
+    fwrite(rlist, sizeof(long), rn, fp);
     }
 
     if ((debug)) utils::logmesg(lmp, "End of writing restart for fix_smc \n");
@@ -678,21 +680,24 @@ void FixSMC::restart(char *buf)
 {
     if ((debug)) utils::logmesg(lmp, "Reading restart for fix_smc \n");
 
-    int restart_n = 0;
-    long *restart_list = (long *)buf;
+    int rn = 0;
+    long *rlist = (long *)buf;
 
-    next_reneighbor = static_cast<bigint>(restart_list[restart_n++]);
+    next_reneighbor = static_cast<bigint>(rlist[rn++]);
 
-    bigint ntimestep_restart = static_cast<bigint>(restart_list[restart_n++]);
-
+    bigint ntimestep_restart = static_cast<bigint>(rlist[rn++]);
     if (ntimestep_restart != update->ntimestep)
         error->all(FLERR, "Must not reset timestep when restarting fix smc");
+
+    int smcnum_rest = rlist[rn++];
+    if (smcnum_rest != smcnum)
+        error->all(FLERR, "Invalid restart, number of smcs has changed!");
 
     // Loading SMCs positions
     for (int j = 0; j < smcnum; j++)
     {
-      anch[j] = static_cast<long>(restart_list[restart_n++]);     
-      hing[j] = static_cast<long>(restart_list[restart_n++]);    
+      anch[j] = static_cast<long>(rlist[rn++]);     
+      hing[j] = static_cast<long>(rlist[rn++]);    
     }
 
   if ((debug)) utils::logmesg(lmp, "End of reading restart for fix_smc \n");
