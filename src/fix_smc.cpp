@@ -264,9 +264,7 @@ void FixSMC::post_integrate() {
   int m;
   int man;
 
-  if (update -> ntimestep % nevery) return;
-
-  else if (update -> ntimestep == nevery) {
+  if (update -> ntimestep == 1) {
 
     //Initialize a random SMC within 2 beads of distance
     int idhi;
@@ -373,7 +371,11 @@ void FixSMC::post_integrate() {
 
     return;
 
-  } else {
+  }
+  
+  else if (update -> ntimestep % nevery) return;
+  
+  else {
 
     // Return if the smcs are still
     if ((hdir == 0) && (adir == 0)) return;
