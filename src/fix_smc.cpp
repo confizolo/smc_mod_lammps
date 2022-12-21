@@ -18,47 +18,56 @@
 
 #include "fix_smc.h"
 
-#include "angle.h"
-
+// The atom class provides access to various atom properties, including the atom type, molecular ID, position, velocity, and force
 #include "atom.h"
 
-#include "bond.h"
-
-#include "citeme.h"
-
-#include "comm.h"
-
-#include "compute.h"
-
-#include "domain.h"
-
-#include "error.h"
-
-#include "fix_bond_history.h"
-
-#include "force.h"
-
-#include "memory.h"
-
-#include "modify.h"
-
-#include "neigh_list.h"
-
-#include "neighbor.h"
-
-#include "pair.h"
-
-#include "random_park.h"
-
-#include "update.h"
-
+// Came by default in fix_swap_atom
 #include <cmath>
-
+#include <cctype>
+#include <cfloat>
 #include <cstring>
+#include "atom.h"
+#include "update.h"
+#include "modify.h"
+#include "fix.h"
+#include "comm.h"
+#include "compute.h"
+#include "modify.h"
+#include "group.h"
+#include "domain.h"
+#include "region.h"
+#include "random_park.h"
+#include "force.h"
+#include "pair.h"
+#include "bond.h"
+#include "angle.h"
+#include "dihedral.h"
+#include "improper.h"
+#include "kspace.h"
+#include "memory.h"
+#include "error.h"
+#include "neighbor.h"
+#include <fix_bond_history.h>
 
-#include <utils.h>
+// Davide include them (with more)
+#include "math.h"
+#include "stdlib.h"
+#include "string.h"
+#include "neigh_list.h"
+#include "neigh_request.h"
+#include "random_mars.h"
+#include "citeme.h"
+#include <stdlib.h>
+#include <time.h>  /* Important for random number generator */
+#include <sstream> // std::stringstream
+#include <fstream> //ofstream
+#include <algorithm>
+#include <iterator>
 
+#include "input.h"
+#include "variable.h"
 #include <iostream>
+#include <algorithm>
 
 using namespace LAMMPS_NS;
 using namespace FixConst;
@@ -149,21 +158,21 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
       error -> all(FLERR, "Illegal fix smc command, initmode not present");
     }
 
-    // To get a different random number every time the program is executed
-    srand(time(NULL) * seed);
-
     xyzanch = nullptr;
     xyzhing = nullptr;
 
     anch = new long[smcnum];
     hing = new long[smcnum];
 
-    random_equal = new RanPark(lmp, seed);
-
     for (int i = 0; i < smcnum; i++) {
       hing[i] = atom -> natoms + 1;
       anch[i] = atom -> natoms + 1;
     }
+    
+    random_equal = new RanPark(lmp, seed);
+
+    // To get a different random number every time the program is executed
+    srand(time(NULL) * seed);
   }
 
 /* ---------------------------------------------------------------------- */
@@ -216,8 +225,6 @@ FixSMC::~FixSMC() {
   delete random_equal;
   delete anch;
   delete hing;
-  delete connFixName;
-  delete connFix;
 
   memory -> destroy(xyzanch);
   memory -> destroy(xyzhing);
@@ -277,7 +284,7 @@ void FixSMC::post_integrate() {
           anch[i] = static_cast < int > (random_equal -> uniform() * atom -> natoms);
         }
         if (initmode == 1) {
-          if (i * lpol >= atom -> natoms) static_cast < int > (random_equal -> uniform() * atom -> natoms);
+          if (i * lpol >= atom -> natoms) anch[i] = static_cast < int > (random_equal -> uniform() * atom -> natoms);
           else anch[i] = static_cast < int > (random_equal -> uniform() * lpol + i * lpol);
         }
         // Check if the smc is wrongly positioned (border conditions)
