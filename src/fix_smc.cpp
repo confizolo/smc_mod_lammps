@@ -295,8 +295,11 @@ void FixSMC::post_integrate() {
         if ((anch[i] + 1) % lpol == 1) {
           anch[i] -= 2;
         }
-        if ((anch[i] - 1) % lpol == 0) {
+        if (((anch[i] - 1) % lpol == 0)) {
           anch[i] += 2;
+        }
+        if ((anch[i] == 0)) {
+          anch[i] += 3;
         }
 
         // Instantiate the bead according to the direction
@@ -306,7 +309,7 @@ void FixSMC::post_integrate() {
         flag = 0;
         // Check if we are superimposing other beads
         for (int j = 0; j < i; j++) {
-          if (((anch[i] == anch[j]) || (hing[i] == hing[j])) || ((anch[i] == hing[j]) || (hing[i] == anch[j]))) {
+          if (((anch[i] == anch[j]) || (hing[i] == hing[j])) || ((anch[i] == hing[j]) || (hing[i] == anch[j])) || ((anch[i]+1) == anch[j]) || ((anch[i]-1) == anch[j]) || ((hing[i]+1) == anch[j]) || ((hing[i]-1) == anch[j]) || ((anch[i]+1) == hing[j]) || ((anch[i]-1) == hing[j]) || ((hing[i]+1) == hing[j]) || ((hing[i]-1) == hing[j])) {
             flag = 1;
             break;
           }
