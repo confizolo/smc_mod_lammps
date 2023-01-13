@@ -323,7 +323,7 @@ void FixSMC::post_integrate() {
 
     // Create bonds according to chosen beads
     for (int i = 0; i < smcnum; i++) {
-      place_smc(anch[i],hing[i]);
+      place_smc(anch[i],hing[i], true);
     }
 
     return;
@@ -499,9 +499,11 @@ void FixSMC::post_integrate() {
 
       // Check if the distance is small enough to run the jump
       if (!(dist > cutoff * cutoff || (anchcounts[0] == 0) || (hingcounts[0] == 0))) {
-
-        remove_smc(anch[i], hing[i]);
-        place_smc(anch[i] + tempadir, hing[i] + temphdir);
+        
+        if ((temphdir!=0) || (tempadir!=0)){
+          remove_smc(anch[i], hing[i]);
+          place_smc(anch[i] + tempadir, hing[i] + temphdir, false);
+        }
 
         anch[i] += tempadir;
         hing[i] += temphdir;
@@ -623,7 +625,7 @@ double FixSMC::compute_array(int i, int flag) {
   }
 }
 
-void FixSMC::place_smc(long a, long h) {
+void FixSMC::place_smc(long a, long h, bool newsmc) {
   long mhi;
   long man;
 
@@ -635,13 +637,9 @@ void FixSMC::place_smc(long a, long h) {
     atom -> type[man] = smctype;
   }
 
-  // Changing type of the new hinge
-  if (((man = idan) >= 0) && (idan < atom -> nlocal)) {
-    atom -> type[man] = smctype;
-  }
-
   // Create new bond between new hinge and anchor if not already present
   if (((mhi = idhi) >= 0) && (idhi < atom -> nlocal)) {
+    // Changing type
     atom -> type[mhi] = smctype;
 
     bool create = 1;
@@ -654,8 +652,13 @@ void FixSMC::place_smc(long a, long h) {
     if (create) {
       // Creating new SMC bond
       if (atom -> num_bond[mhi] == atom -> bond_per_atom) error -> one(FLERR, "New bond exceeded bonds per atom limit of {} in create_bonds", atom -> bond_per_atom);
-      atom -> bond_type[mhi][atom -> num_bond[mhi]] = smcbtype;
-      atom -> bond_atom[mhi][atom -> num_bond[mhi]] = idan;
+      if (newsmc){
+        atom -> bond_type[mhi][atom -> num_bond[mhi]] = smcbitype;
+      }
+      else {
+        atom -> bond_type[mhi][atom -> num_bond[mhi]] = smcbtype;
+      }
+      atom -> bond_atom[mhi][atom -> num_bond[mhi]] = a;
       atom -> num_bond[mhi]++;
     }
   }
@@ -678,12 +681,10 @@ void FixSMC::remove_smc(long a, long h) {
     atom -> type[man] = 1;
   }
 
-  // Changing type of the old hinge
   if (((mhi = idhi) >= 0) && (idhi < atom -> nlocal)) {
+    // Resetting type
     atom -> type[mhi] = 1;
-  }
 
-  if (((mhi = idhi) >= 0) && (idhi < atom -> nlocal)) {
     // Deleting old SMC bond
     for (int ibond = 0; ibond < atom -> num_bond[mhi]; ibond++) {
       if ((atom -> bond_type[mhi][ibond] == smcbtype) || (atom -> bond_type[mhi][ibond] == smcbitype)) {

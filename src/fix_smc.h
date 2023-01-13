@@ -42,7 +42,7 @@ namespace LAMMPS_NS
       double compute_array(int, int) override;
       double compute_scalar() override;
 
-      void place_smc(long, long);
+      void place_smc(long, long, bool);
       void remove_smc(long, long);
 
    private:
