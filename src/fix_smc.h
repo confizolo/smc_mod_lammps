@@ -42,10 +42,13 @@ namespace LAMMPS_NS
       double compute_array(int, int) override;
       double compute_scalar() override;
 
+      void place_smc(long, long);
+      void remove_smc(long, long);
+
    private:
       long *anch, *hing;
       int seed, smctype, smcbtype, smcbitype, lpol, adir, hdir, smcnum, initmode;
-      double prob, cutoff;
+      double prob, cutoff, kon, koff;
       double *xyzanch, *xyzhing;
       bool debug;
       class RanPark *random_equal;
