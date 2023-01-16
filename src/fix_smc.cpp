@@ -96,9 +96,11 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     // 13. smcbitype: bond type of anchoring beads at the first deployment
     // 14. cutoff: distance cutoff for attempted movements (Jump is accepted only if distance between new anchor and hinge is below the cutoff)
     // 15. initmode: random or distributed according to uswe
-    // 16. FixID: Name of ID to get informations about 
+    // 16. kon: loading probability 
+    // 17. koff: unloading probability
+    // 18. FixID: Name of ID to get informations about 
 
-    if ((narg != 15) && (narg != 16)) error -> all(FLERR, "Illegal fix smc command");
+    if ((narg != 17) && (narg != 18)) error -> all(FLERR, "Illegal fix smc command");
 
     nevery = utils::inumeric(FLERR, arg[3], false, lmp);
     if (nevery <= 0) error -> all(FLERR, "Illegal fix smc command");
@@ -140,14 +142,6 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     if (cutoff < 0)
       error -> all(FLERR, "Illegal fix smc command");
 
-    if (narg == 16) {
-      connFixName = new char[static_cast < int > (sizeof(arg[15]) / sizeof(char))];
-      std::copy(arg[15], arg[15] + static_cast < int > (sizeof(arg[15]) / sizeof(char)), connFixName);
-    } else {
-      connFixName = new char[5];
-      connFixName = "nofix";
-    }
-
     initmode = 0;
 
     if (strcmp(arg[14], "random") == 0) {
@@ -158,6 +152,23 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
       error -> all(FLERR, "Illegal fix smc command, initmode not present");
     }
 
+    kon = utils::numeric(FLERR, arg[15], false, lmp);
+    if ((kon <= 0) || (kon>1))
+      error -> all(FLERR, "Illegal fix smc command, kon is out of the interval (0,1]");
+
+    koff = utils::numeric(FLERR, arg[16], false, lmp);
+    if ((koff < 0) || (koff>1))
+      error -> all(FLERR, "Illegal fix smc command, koff is out of the interval [0,1]");
+
+    if (narg == 18) {
+      connFixName = new char[static_cast < int > (sizeof(arg[17]) / sizeof(char))];
+      std::copy(arg[17], arg[17] + static_cast < int > (sizeof(arg[17]) / sizeof(char)), connFixName);
+    } else {
+      connFixName = new char[5];
+      connFixName = "nofix";
+    }
+
+
     xyzanch = nullptr;
     xyzhing = nullptr;
 
@@ -165,8 +176,8 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     hing = new long[smcnum];
 
     for (int i = 0; i < smcnum; i++) {
-      hing[i] = atom -> natoms + 1;
-      anch[i] = atom -> natoms + 1;
+      hing[i] = -1;
+      anch[i] = -1;
     }
 
     random_equal = new RanPark(lmp, seed);
@@ -242,72 +253,15 @@ void FixSMC::post_integrate() {
     int idan;
 
     // Define a random anchor position inside a monodisperse system with L=lpol
-    if (comm -> me == 0) {
-
-      // Define randomly the position of the smc hinge and anchors along one of the polymers
-      int i = 0;
-      bool flag = 0;
-
-      while (i < smcnum) {
-        if (initmode == 0) {
-          anch[i] = static_cast < int > (random_equal -> uniform() * atom -> natoms);
-        }
-        if (initmode == 1) {
-          if (i * lpol >= atom -> natoms) anch[i] = static_cast < int > (random_equal -> uniform() * atom -> natoms);
-          else anch[i] = static_cast < int > (random_equal -> uniform() * lpol + i * lpol);
-        }
-        // Check if the smc is wrongly positioned (border conditions)
-        if ((anch[i] + 1) % lpol == 0) {
-          anch[i] -= 1;
-        }
-        if ((anch[i] - 1) % lpol == 1) {
-          anch[i] += 1;
-        }
-        if ((anch[i] + 1) % lpol == 1) {
-          anch[i] -= 2;
-        }
-        if (((anch[i] - 1) % lpol == 0)) {
-          anch[i] += 2;
-        }
-        if ((anch[i] == 0)) {
-          anch[i] += 3;
-        }
-
-        // Instantiate the bead according to the direction
-        if (hdir != 0) hing[i] = anch[i] + 2 * hdir / abs(hdir);
-        else hing[i] = anch[i] - 2 * adir / abs(adir);
-
-        flag = 0;
-        // Check if we are superimposing other beads
-        for (int j = 0; j < i; j++) {
-          if (((anch[i] == anch[j]) || (hing[i] == hing[j])) || ((anch[i] == hing[j]) || (hing[i] == anch[j])) || ((anch[i] + 1) == anch[j]) || ((anch[i] - 1) == anch[j]) || ((hing[i] + 1) == anch[j]) || ((hing[i] - 1) == anch[j]) || ((anch[i] + 1) == hing[j]) || ((anch[i] - 1) == hing[j]) || ((hing[i] + 1) == hing[j]) || ((hing[i] - 1) == hing[j])) {
-            flag = 1;
-            break;
-          }
-        }
-
-        if (connFix) {
-          // Check for conflicts with connected fix
-          for (int k = 0; k < connFix -> compute_scalar(); k++) {
-            if (connFix -> compute_array(k, 1) > atom -> natoms) continue;
-            if (((anch[i]) >= connFix -> compute_array(k, 0)) && ((anch[i]) < (connFix -> compute_array(k, 1)))) {
-              flag = 1;
-              break;
-            }
-            if (((hing[i]) >= connFix -> compute_array(k, 0)) && ((hing[i]) < (connFix -> compute_array(k, 1)))) {
-              flag = 1;
-              break;
-            }
-          }
-        }
-
-        if (flag) {
+    // Define randomly the position of the smc hinge and anchors along one of the polymers
+    if (comm->me == 0){
+      for (int i = 0; i < smcnum; i++)
+      {
+        if (random_equal -> uniform() > kon){
           continue;
         }
-
-        i++;
+        load_smc(i);      
       }
-
     }
 
     // Cast the chosen position to each processor
@@ -323,6 +277,8 @@ void FixSMC::post_integrate() {
 
     // Create bonds according to chosen beads
     for (int i = 0; i < smcnum; i++) {
+      // Check if smc are loaded
+      if ((anch[i]<0) || (hing[i]<0)) continue;
       place_smc(anch[i],hing[i], true);
     }
 
@@ -369,6 +325,36 @@ void FixSMC::post_integrate() {
     // }
 
     for (int i = 0; i < smcnum; i++) {
+
+      // Draw two random numbers for the unloading/loading
+      double lrand;
+
+      if (comm -> me == 0) lrand = random_equal -> uniform();
+
+      MPI_Bcast( & lrand, 1, MPI_DOUBLE, 0, world);
+
+      if ((anch[i]<0) || (hing[i]<0)){
+        if (lrand < kon) {
+          if (comm->me==0) load_smc(i);
+          
+          // Cast the chosen position to each processor
+          MPI_Bcast(anch, smcnum, MPI_LONG, 0, world);
+          MPI_Bcast(hing, smcnum, MPI_LONG, 0, world);
+
+          place_smc(anch[i],hing[i],true);
+        }
+      }
+      else{
+        if (lrand < koff) {
+          remove_smc(anch[i],hing[i]);
+          anch[i]=-1;
+          hing[i]=-1;
+        }
+      }
+
+      // Check if smc are loaded
+      if ((anch[i]<0) || (hing[i]<0)) continue;
+
       // Draw a random number for the jump attempt
       double rand;
       if (comm -> me == 0) rand = random_equal -> uniform();
@@ -622,6 +608,68 @@ double FixSMC::compute_array(int i, int flag) {
   } else {
     if (rflag) return anch[i];
     else return hing[i];
+  }
+}
+
+void FixSMC::load_smc(long i) {
+  if (comm->me==0) {
+    bool flag = 1;
+    while(flag){
+      if ((initmode == 0) || (update -> ntimestep > 1)) {
+        anch[i] = static_cast < int > (random_equal -> uniform() * atom -> natoms);
+      }
+      else if (initmode == 1) {
+        if (i * lpol >= atom -> natoms) anch[i] = static_cast < int > (random_equal -> uniform() * atom -> natoms);
+        else anch[i] = static_cast < int > (random_equal -> uniform() * lpol + i * lpol);
+      }
+      // Check if the smc is wrongly positioned (border conditions)
+      if ((anch[i] + 1) % lpol == 0) {
+        anch[i] -= 1;
+      }
+      if ((anch[i] - 1) % lpol == 1) {
+        anch[i] += 1;
+      }
+      if ((anch[i] + 1) % lpol == 1) {
+        anch[i] -= 2;
+      }
+      if (((anch[i] - 1) % lpol == 0)) {
+        anch[i] += 2;
+      }
+      if ((anch[i] == 0)) {
+        anch[i] += 3;
+      }
+
+      // Instantiate the bead according to the direction
+      if (hdir != 0) hing[i] = anch[i] + 2 * hdir / abs(hdir);
+      else hing[i] = anch[i] - 2 * adir / abs(adir);
+
+      flag = 0;
+      // Check if we are superimposing other beads
+      for (int j = 0; j < smcnum; j++) {
+        if (j==i) continue;
+        if (((anch[i] == anch[j]) || (hing[i] == hing[j])) || ((anch[i] == hing[j]) || (hing[i] == anch[j])) || ((anch[i] + 1) == anch[j]) || ((anch[i] - 1) == anch[j]) || ((hing[i] + 1) == anch[j]) || ((hing[i] - 1) == anch[j]) || ((anch[i] + 1) == hing[j]) || ((anch[i] - 1) == hing[j]) || ((hing[i] + 1) == hing[j]) || ((hing[i] - 1) == hing[j])) {
+          flag = 1;
+          break;
+        }
+      }
+
+      if (flag) continue;
+
+      if (connFix) {
+        // Check for conflicts with connected fix
+        for (int k = 0; k < connFix -> compute_scalar(); k++) {
+          if (connFix -> compute_array(k, 1) > atom -> natoms) continue;
+          if (((anch[i]) >= connFix -> compute_array(k, 0)) && ((anch[i]) < (connFix -> compute_array(k, 1)))) {
+            flag = 1;
+            break;
+          }
+          if (((hing[i]) >= connFix -> compute_array(k, 0)) && ((hing[i]) < (connFix -> compute_array(k, 1)))) {
+            flag = 1;
+            break;
+          }
+        }
+      }
+    }
   }
 }
 
