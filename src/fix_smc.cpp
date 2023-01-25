@@ -88,19 +88,20 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     // 5. seed: random seed
     // 6. prob: probability to attempt the jump
     // 7. lpol: length of polymer(s)
-    // 8. adir: attempted movement of anchor (next attempted atom id: current anchor + adir)
-    // 9. hdir: attempted movement of hinge (next attempted atom id: current hinge + hdir)
-    // 10. smcnum: number of deployed smcs
-    // 11. smctype: atom type of anchoring beads
-    // 12. smcbtype: bond type of anchoring beads after the first deployment
-    // 13. smcbitype: bond type of anchoring beads at the first deployment
-    // 14. cutoff: distance cutoff for attempted movements (Jump is accepted only if distance between new anchor and hinge is below the cutoff)
-    // 15. initmode: random or distributed according to uswe
-    // 16. kon: loading probability 
-    // 17. koff: unloading probability
-    // 18. FixID: Name of ID to get informations about 
+    // 8. poltype: give the form of the polymer (either linear or ring)
+    // 9. adir: attempted movement of anchor (next attempted atom id: current anchor + adir)
+    // 10. hdir: attempted movement of hinge (next attempted atom id: current hinge + hdir)
+    // 11. smcnum: number of deployed smcs
+    // 12. smctype: atom type of anchoring beads
+    // 13. smcbtype: bond type of anchoring beads after the first deployment
+    // 14. smcbitype: bond type of anchoring beads at the first deployment
+    // 15. cutoff: distance cutoff for attempted movements (Jump is accepted only if distance between new anchor and hinge is below the cutoff)
+    // 16. initmode: random or distributed according to uswe
+    // 17. kon: loading probability 
+    // 18. koff: unloading probability
+    // 19. FixID: Name of ID to get informations about 
 
-    if ((narg != 17) && (narg != 18)) error -> all(FLERR, "Illegal fix smc command");
+    if ((narg != 18) && (narg != 19)) error -> all(FLERR, "Illegal fix smc command");
 
     nevery = utils::inumeric(FLERR, arg[3], false, lmp);
     if (nevery <= 0) error -> all(FLERR, "Illegal fix smc command");
@@ -121,48 +122,56 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     lpol = utils::inumeric(FLERR, arg[6], false, lmp);
     if (lpol <= 0) error -> all(FLERR, "Illegal fix smc command");
 
-    adir = utils::inumeric(FLERR, arg[7], false, lmp);
+    if (strcmp(arg[7], "linear") == 0) {
+      ring = 0;
+    } else if (strcmp(arg[7], "ring") == 0) {
+      ring = 1;
+    } else {
+      error -> all(FLERR, "Illegal fix smc command, indefinite polymer type");
+    }
 
-    hdir = utils::inumeric(FLERR, arg[8], false, lmp);
+    adir = utils::inumeric(FLERR, arg[8], false, lmp);
+
+    hdir = utils::inumeric(FLERR, arg[9], false, lmp);
     if (hdir * adir >= 0) error -> all(FLERR, "Illegal fix smc command, hinge and must not have same direction");
 
-    smcnum = utils::inumeric(FLERR, arg[9], false, lmp);
+    smcnum = utils::inumeric(FLERR, arg[10], false, lmp);
     if (smcnum <= 0) error -> all(FLERR, "Illegal fix smc command");
 
-    smctype = utils::inumeric(FLERR, arg[10], false, lmp);
+    smctype = utils::inumeric(FLERR, arg[11], false, lmp);
     if (smctype <= 0) error -> all(FLERR, "Illegal fix smc command");
 
-    smcbtype = utils::inumeric(FLERR, arg[11], false, lmp);
+    smcbtype = utils::inumeric(FLERR, arg[12], false, lmp);
     if (smcbtype <= 0) error -> all(FLERR, "Illegal fix smc command");
 
-    smcbitype = utils::inumeric(FLERR, arg[12], false, lmp);
+    smcbitype = utils::inumeric(FLERR, arg[13], false, lmp);
     if (smcbitype <= 0) error -> all(FLERR, "Illegal fix smc command");
 
-    cutoff = utils::numeric(FLERR, arg[13], false, lmp);
+    cutoff = utils::numeric(FLERR, arg[14], false, lmp);
     if (cutoff < 0)
       error -> all(FLERR, "Illegal fix smc command");
 
     initmode = 0;
 
-    if (strcmp(arg[14], "random") == 0) {
+    if (strcmp(arg[15], "random") == 0) {
       initmode = 0;
-    } else if (strcmp(arg[14], "distributed") == 0) {
+    } else if (strcmp(arg[15], "distributed") == 0) {
       initmode = 1;
     } else {
       error -> all(FLERR, "Illegal fix smc command, initmode not present");
     }
 
-    kon = utils::numeric(FLERR, arg[15], false, lmp);
+    kon = utils::numeric(FLERR, arg[16], false, lmp);
     if ((kon <= 0) || (kon>1))
       error -> all(FLERR, "Illegal fix smc command, kon is out of the interval (0,1]");
 
-    koff = utils::numeric(FLERR, arg[16], false, lmp);
+    koff = utils::numeric(FLERR, arg[17], false, lmp);
     if ((koff < 0) || (koff>1))
       error -> all(FLERR, "Illegal fix smc command, koff is out of the interval [0,1]");
 
-    if (narg == 18) {
-      connFixName = new char[static_cast < int > (sizeof(arg[17]) / sizeof(char))];
-      std::copy(arg[17], arg[17] + static_cast < int > (sizeof(arg[17]) / sizeof(char)), connFixName);
+    if (narg == 19) {
+      connFixName = new char[static_cast < int > (sizeof(arg[18]) / sizeof(char))];
+      std::copy(arg[18], arg[18] + static_cast < int > (sizeof(arg[18]) / sizeof(char)), connFixName);
     } else {
       connFixName = new char[5];
       connFixName = "nofix";
@@ -388,17 +397,30 @@ void FixSMC::post_integrate() {
       temphdir = hdir;
 
       // Check if we are going to the polymer border on one side or on the other
+
       if (hdir / abs(hdir) < 0) {
-        if ((hing[i] + hdir) % lpol == 0) temphdir = 0;
+        if ((hing[i] + hdir) % lpol == 0){
+          if (!ring) temphdir = 0;
+          else temphdir = (lpol-1);
+        }
       } else {
-        if ((hing[i] + hdir) % lpol == 1) temphdir = 0;
+        if ((hing[i] + hdir) % lpol == 1){
+          if (!ring) temphdir = 0;
+          else temphdir = 1-lpol;
+        }
       }
       if (adir / abs(adir) < 0) {
-        if ((anch[i] + adir) % lpol == 0) tempadir = 0;
+        if ((anch[i] + adir) % lpol == 0){
+          if (!ring) tempadir = 0;
+          else tempadir = (lpol-1);
+        }
       } else {
-        if ((anch[i] + adir) % lpol == 1) tempadir = 0;
+        if ((anch[i] + adir) % lpol == 1){
+          if (!ring) tempadir = 0;
+          else tempadir = 1-lpol;
+        }
       }
-
+      
       if (connFix) {
         // Check for conflicts with connected fix
         for (int k = 0; k < connFix -> compute_scalar(); k++) {
@@ -416,7 +438,12 @@ void FixSMC::post_integrate() {
       // Check if the new movement is forbidden because of superposition of SMCs
       flag = 0;
       for (int j = 0; j < smcnum; j++) {
-        if (j == i) continue;
+        if (j == i){
+          if (((anch[i] + tempadir) == (hing[i] + temphdir)) || ((anch[i] + tempadir) == hing[i]) || (anch[i] == (hing[i] + temphdir))){
+            flag=1;
+            break;
+          }
+        } 
         if ((((anch[i] + tempadir) == anch[j]) || ((anch[i] + tempadir) == hing[j])) && (((hing[i] + temphdir) == hing[j]) || ((hing[i] + temphdir) == anch[j]))) {
           flag = 1;
           break;
