@@ -248,6 +248,15 @@ void FixSMC::post_integrate() {
 
   if (update -> ntimestep == 1) {
 
+    if ((debug) && (comm->me==0)){
+      std::ofstream dfile;
+      dfile.open("smc_pos_log.data");
+      for (int i = 0; i < smcnum; i++)
+        {
+          dfile << anch[i] << " " << hing[i] << std::endl;
+        }
+      dfile.close();
+    }
     //Initialize a random SMC within 2 beads of distance
     int idhi;
     int idan;
@@ -287,6 +296,16 @@ void FixSMC::post_integrate() {
   } else if (update -> ntimestep % nevery) return;
 
   else {
+
+    if ((debug) && (comm->me==0)){
+      std::ofstream dfile;
+      dfile.open("smc_pos_log.data", std::ios_base::app);
+      for (int i = 0; i < smcnum; i++)
+        {
+          dfile << anch[i] << " " << hing[i] << std::endl;
+        }
+      dfile.close();
+    }
 
     // Return if the smcs are still
     if ((hdir == 0) && (adir == 0)) return;
