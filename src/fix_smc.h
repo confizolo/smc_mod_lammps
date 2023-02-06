@@ -54,7 +54,7 @@ namespace LAMMPS_NS
       bool debug;
       class RanPark *random_equal;
       class Fix *connFix;
-      char *connFixName;
+      char *connFixName, *dumpFile;
    };
 
 } // namespace LAMMPS_NS

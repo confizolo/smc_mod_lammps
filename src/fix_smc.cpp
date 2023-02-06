@@ -80,7 +80,7 @@ const char cite_fix_smc[] =
 
 FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
   Fix(lmp, narg, arg),
-  anch(nullptr), hing(nullptr), smctype(0), smcbtype(0), smcnum(0), debug(0), connFix(nullptr) {
+  anch(nullptr), hing(nullptr), smctype(0), smcbtype(0), smcnum(0), debug(1), connFix(nullptr) {
     if (lmp -> citeme) lmp -> citeme -> add(cite_fix_smc);
     // Number of arguments for the fix. The first three arguments are parsed by Fix base class constructor.
     // The rest are specific to this fix. 11 are mandatory
@@ -99,7 +99,8 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     // 16. initmode: random or distributed according to uswe
     // 17. kon: loading probability 
     // 18. koff: unloading probability
-    // 19. FixID: Name of ID to get informations about 
+    // 19. dumpFile: file to dump smc positions
+    // 20. FixID: Name of ID to get informations about 
 
     if ((narg != 18) && (narg != 19)) error -> all(FLERR, "Illegal fix smc command");
 
@@ -169,9 +170,12 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     if ((koff < 0) || (koff>1))
       error -> all(FLERR, "Illegal fix smc command, koff is out of the interval [0,1]");
 
-    if (narg == 19) {
-      connFixName = new char[static_cast < int > (sizeof(arg[18]) / sizeof(char))];
-      std::copy(arg[18], arg[18] + static_cast < int > (sizeof(arg[18]) / sizeof(char)), connFixName);
+    dumpFile = new char[static_cast < int > (sizeof(arg[18]) / sizeof(char))];
+    std::copy(arg[18], arg[18] + static_cast < int > (sizeof(arg[18]) / sizeof(char)), dumpFile);
+    
+    if (narg == 20) {
+      connFixName = new char[static_cast < int > (sizeof(arg[19]) / sizeof(char))];
+      std::copy(arg[19], arg[19] + static_cast < int > (sizeof(arg[19]) / sizeof(char)), connFixName);
     } else {
       connFixName = new char[5];
       connFixName = "nofix";
@@ -259,7 +263,7 @@ void FixSMC::post_integrate() {
 
     if ((debug) && (comm->me==0)){
       std::ofstream dfile;
-      dfile.open("smc_pos_log.data");
+      dfile.open(dumpFile);
       for (int i = 0; i < smcnum; i++)
         {
           dfile << anch[i] << " " << hing[i] << std::endl;
@@ -308,7 +312,7 @@ void FixSMC::post_integrate() {
 
     if ((debug) && (comm->me==0)){
       std::ofstream dfile;
-      dfile.open("smc_pos_log.data", std::ios_base::app);
+      dfile.open(dumpFile, std::ios_base::app);
       for (int i = 0; i < smcnum; i++)
         {
           dfile << anch[i] << " " << hing[i] << std::endl;
