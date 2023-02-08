@@ -47,6 +47,8 @@
 #include "memory.h"
 #include "error.h"
 #include "neighbor.h"
+#include<array> 
+
 #include <fix_bond_history.h>
 
 // Davide include them (with more)
@@ -170,9 +172,8 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     if ((koff < 0) || (koff>1))
       error -> all(FLERR, "Illegal fix smc command, koff is out of the interval [0,1]");
 
-    dumpFile = new char[static_cast < int > (sizeof(arg[18]) / sizeof(char))];
-    std::copy(arg[18], arg[18] + static_cast < int > (sizeof(arg[18]) / sizeof(char)), dumpFile);
-    
+    dumpFile = utils::get_potential_file_path(arg[18]);
+
     if (narg == 20) {
       connFixName = new char[static_cast < int > (sizeof(arg[19]) / sizeof(char))];
       std::copy(arg[19], arg[19] + static_cast < int > (sizeof(arg[19]) / sizeof(char)), connFixName);
@@ -180,7 +181,6 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
       connFixName = new char[5];
       connFixName = "nofix";
     }
-
 
     xyzanch = nullptr;
     xyzhing = nullptr;
@@ -242,7 +242,7 @@ void FixSMC::init() {
     error -> all(FLERR, "Fix smc requires pair and bond styles");
 
   // Store the connected Fix ID pointer
-  if (strcmp(connFixName, "nofix") == 0) {
+  if (utils::strmatch(connFixName, "nofix") == 1) {
     connFix = nullptr;
   } else {
     connFix = modify -> get_fix_by_id(connFixName);
