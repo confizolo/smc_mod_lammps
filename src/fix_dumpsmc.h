@@ -16,45 +16,39 @@
 ------------------------------------------------------------------------- */
 #ifdef FIX_CLASS
 // clang-format off
-FixStyle(smc,FixSMC);
+FixStyle(dumpsmc,FixDUMPSMC);
 // clang-format on
 #else
 
-#ifndef LMP_FIX_SMC_H
-#define LMP_FIX_SMC_H
+#ifndef LMP_FIX_DUMPSMC_H
+#define LMP_FIX_DUMPSMC_H
 
 #include "fix.h"
+#include <string>
+#include <fstream>
 
 namespace LAMMPS_NS
 {
 
-   class FixSMC : public Fix
+   class FixDUMPSMC : public Fix
    {
    public:
-      FixSMC(class LAMMPS *, int, char **);
-      ~FixSMC() override;
+      FixDUMPSMC(class LAMMPS *, int, char **);
+      ~FixDUMPSMC() override;
       int setmask() override;
       void init() override;
       void post_integrate() override;
       double memory_usage() override;
       void write_restart(FILE *fp) override;
       void restart(char *) override;
-      double compute_array(int, int) override;
-      double compute_scalar() override;
-
-      void load_smc(long);
-      void place_smc(long, long, bool);
-      void remove_smc(long, long);
 
    private:
-      long *anch, *hing;
-      int seed, smctype, smcbtype, smcbitype, lpol, adir, hdir, smcnum, initmode, ring;
-      double prob, cutoff, kon, koff;
-      double *xyzanch, *xyzhing;
-      bool debug;
-      class RanPark *random_equal;
+      long nevery;
+      int nsmc;
       class Fix *connFix;
       char *connFixName;
+      std::string dumpFile;
+      std::ofstream dfile;
    };
 
 } // namespace LAMMPS_NS

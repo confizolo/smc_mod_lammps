@@ -82,7 +82,7 @@ const char cite_fix_smc[] =
 
 FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
   Fix(lmp, narg, arg),
-  anch(nullptr), hing(nullptr), smctype(0), smcbtype(0), smcnum(0), debug(1), connFix(nullptr) {
+  anch(nullptr), hing(nullptr), smctype(0), smcbtype(0), smcnum(0), debug(0), connFix(nullptr) {
     if (lmp -> citeme) lmp -> citeme -> add(cite_fix_smc);
     // Number of arguments for the fix. The first three arguments are parsed by Fix base class constructor.
     // The rest are specific to this fix. 11 are mandatory
@@ -101,8 +101,7 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     // 16. initmode: random or distributed according to uswe
     // 17. kon: loading probability 
     // 18. koff: unloading probability
-    // 19. dumpFile: file to dump smc positions
-    // 20. FixID: Name of ID to get informations about 
+    // 19. FixID: Name of ID to get informations about 
 
     if ((narg != 18) && (narg != 19)) error -> all(FLERR, "Illegal fix smc command");
 
@@ -172,11 +171,9 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     if ((koff < 0) || (koff>1))
       error -> all(FLERR, "Illegal fix smc command, koff is out of the interval [0,1]");
 
-    dumpFile = utils::get_potential_file_path(arg[18]);
-
-    if (narg == 20) {
-      connFixName = new char[static_cast < int > (sizeof(arg[19]) / sizeof(char))];
-      std::copy(arg[19], arg[19] + static_cast < int > (sizeof(arg[19]) / sizeof(char)), connFixName);
+    if (narg == 19) {
+      connFixName = new char[static_cast < int > (sizeof(arg[18]) / sizeof(char))];
+      std::copy(arg[18], arg[18] + static_cast < int > (sizeof(arg[18]) / sizeof(char)), connFixName);
     } else {
       connFixName = new char[5];
       connFixName = "nofix";
@@ -261,15 +258,6 @@ void FixSMC::post_integrate() {
 
   if (update -> ntimestep == 1) {
 
-    if ((debug) && (comm->me==0)){
-      std::ofstream dfile;
-      dfile.open(dumpFile);
-      for (int i = 0; i < smcnum; i++)
-        {
-          dfile << anch[i] << " " << hing[i] << std::endl;
-        }
-      dfile.close();
-    }
     //Initialize a random SMC within 2 beads of distance
     int idhi;
     int idan;
@@ -309,16 +297,6 @@ void FixSMC::post_integrate() {
   } else if (update -> ntimestep % nevery) return;
 
   else {
-
-    if ((debug) && (comm->me==0)){
-      std::ofstream dfile;
-      dfile.open(dumpFile, std::ios_base::app);
-      for (int i = 0; i < smcnum; i++)
-        {
-          dfile << anch[i] << " " << hing[i] << std::endl;
-        }
-      dfile.close();
-    }
 
     // Return if the smcs are still
     if ((hdir == 0) && (adir == 0)) return;
