@@ -43,12 +43,13 @@ namespace LAMMPS_NS
       void restart(char *) override;
 
    private:
-      long nevery;
+      long nevery, temp;
       int nsmc;
       class Fix *connFix;
       char *connFixName;
       std::string dumpFile;
       std::ofstream dfile;
+      std::ifstream ifile;
    };
 
 } // namespace LAMMPS_NS

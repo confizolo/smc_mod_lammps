@@ -100,6 +100,7 @@ FixDUMPSMC::FixDUMPSMC(LAMMPS * lmp, int narg, char ** arg):
     connFixName = new char[static_cast < int > (sizeof(arg[6]) / sizeof(char))];
     std::copy(arg[6], arg[6] + static_cast < int > (sizeof(arg[6]) / sizeof(char)), connFixName);
     
+
   }
 
 /* ---------------------------------------------------------------------- */
@@ -149,7 +150,8 @@ void FixDUMPSMC::post_integrate() {
 ------------------------------------------------------------------------- */
 
 double FixDUMPSMC::memory_usage() {
-
+  double bytes = 2 * nsmc * sizeof(long);
+  return bytes;
 }
 
 /*---------------------------------------------------------------------*/
@@ -183,11 +185,10 @@ void FixDUMPSMC::restart(char * buf) {
     error -> all(FLERR, "Must not reset timestep when restarting fix smc");
 
   if (comm->me==0){ 
+
       long side1[(int) ntimestep_restart/nevery][nsmc];
       long side2[(int) ntimestep_restart/nevery][nsmc];
-      long temp;
-      std::ifstream ifile;    
-
+      
       ifile.open(dumpFile);
       for (int t = 0; t < (int) ntimestep_restart/nevery; t++){
         for (int i = 0; i < nsmc; i++)
