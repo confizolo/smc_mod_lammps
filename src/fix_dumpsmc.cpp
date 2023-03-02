@@ -130,12 +130,16 @@ void FixDUMPSMC::init() {
 ------------------------------------------------------------------------- */
 
 void FixDUMPSMC::post_integrate() {
+  if (update -> ntimestep == 1){
+    dfile.open(dumpFile + ".txt", std::fstream::trunc | std::fstream::out);
+    dfile.close();
+  }
   if (update -> ntimestep % nevery) return;
   
   else{
 
     if (comm->me==0){      
-      dfile.open(dumpFile, std::ios_base::app);
+      dfile.open(dumpFile + ".txt", std::ios_base::app);
       for (int i = 0; i < nsmc; i++)
         {
           dfile << update -> ntimestep << " " << i+1 << " " <<connFix->compute_array(i,0) << " " << connFix->compute_array(i,1) << std::endl;
@@ -186,25 +190,29 @@ void FixDUMPSMC::restart(char * buf) {
 
   if (comm->me==0){ 
 
-      long side1[(int) ntimestep_restart/nevery][nsmc];
-      long side2[(int) ntimestep_restart/nevery][nsmc];
-      
-      ifile.open(dumpFile);
+      ifile.open(dumpFile + ".txt");
+      dfilerst.open(dumpFile + "temp" + ".txt", std::fstream::trunc | std::fstream::out);
       for (int t = 0; t < (int) ntimestep_restart/nevery; t++){
         for (int i = 0; i < nsmc; i++)
           {
-            ifile >> temp >> temp >> side1[t][i] >> side2[t][i];
+            ifile >> temptime >> tempnum >> tempside1 >> tempside2;
+            dfilerst << temptime << " " << tempnum << " " << tempside1<< " " << tempside2 << std::endl;
           }
       }
       ifile.close();
+      dfilerst.close();
 
-      dfile.open(dumpFile, std::ios_base::out);
+      ifile.open(dumpFile + "temp" + ".txt");
+      dfile.open(dumpFile + ".txt", std::fstream::trunc | std::fstream::out);
       for (int t = 0; t < (int) ntimestep_restart/nevery; t++){
         for (int i = 0; i < nsmc; i++)
           {
-            dfile << (t+1)*nevery << " " << i+1 << " " <<side1[t][i] << " " << side2[t][i] << std::endl;
+            ifile >> temptime >> tempnum >> tempside1 >> tempside2;
+            dfile << temptime << " " << tempnum << " " << tempside1<< " " << tempside2 << std::endl;
           }
       }
+
+      ifile.close();
       dfile.close();
 
     }
