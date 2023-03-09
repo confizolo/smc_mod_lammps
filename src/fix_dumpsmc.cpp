@@ -95,10 +95,7 @@ FixDUMPSMC::FixDUMPSMC(LAMMPS * lmp, int narg, char ** arg):
     // Flag to activate dump in restart file of fix smc structure
     restart_global = 1;
 
-    dumpFile = new char[static_cast < int > (sizeof(arg[5]) / sizeof(char))];
-    std::copy(arg[5], arg[5] + static_cast < int > (sizeof(arg[5]) / sizeof(char)), dumpFile);
-
-    dumpFilestr = dumpFile;
+    dumpFilestr = arg[5];
 
     connFixName = new char[static_cast < int > (sizeof(arg[6]) / sizeof(char))];
     std::copy(arg[6], arg[6] + static_cast < int > (sizeof(arg[6]) / sizeof(char)), connFixName);

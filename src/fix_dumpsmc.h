@@ -46,7 +46,7 @@ namespace LAMMPS_NS
       long nevery, temptime, tempnum, tempside1, tempside2;
       int nsmc;
       class Fix *connFix;
-      char *connFixName, *dumpFile;
+      char *connFixName;
       std::string dumpFilestr;
       std::ofstream dfile;
       std::ofstream dfilerst;
