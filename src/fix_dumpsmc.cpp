@@ -95,7 +95,10 @@ FixDUMPSMC::FixDUMPSMC(LAMMPS * lmp, int narg, char ** arg):
     // Flag to activate dump in restart file of fix smc structure
     restart_global = 1;
 
-    dumpFile = utils::get_potential_file_path(arg[5]);
+    dumpFile = new char[static_cast < int > (sizeof(arg[5]) / sizeof(char))];
+    std::copy(arg[5], arg[5] + static_cast < int > (sizeof(arg[5]) / sizeof(char)), dumpFile);
+
+    dumpFilestr = dumpFile;
 
     connFixName = new char[static_cast < int > (sizeof(arg[6]) / sizeof(char))];
     std::copy(arg[6], arg[6] + static_cast < int > (sizeof(arg[6]) / sizeof(char)), connFixName);
@@ -131,15 +134,15 @@ void FixDUMPSMC::init() {
 
 void FixDUMPSMC::post_integrate() {
   if (update -> ntimestep == 1){
-    dfile.open(dumpFile + ".txt", std::fstream::trunc | std::fstream::out);
+    dfile.open(dumpFilestr + ".txt", std::fstream::trunc | std::fstream::out);
     dfile.close();
   }
   if (update -> ntimestep % nevery) return;
   
   else{
-
+    
     if (comm->me==0){      
-      dfile.open(dumpFile + ".txt", std::ios_base::app);
+      dfile.open(dumpFilestr + ".txt", std::ios_base::app);
       for (int i = 0; i < nsmc; i++)
         {
           dfile << update -> ntimestep << " " << i+1 << " " <<connFix->compute_array(i,0) << " " << connFix->compute_array(i,1) << std::endl;
@@ -190,8 +193,8 @@ void FixDUMPSMC::restart(char * buf) {
 
   if (comm->me==0){ 
 
-      ifile.open(dumpFile + ".txt");
-      dfilerst.open(dumpFile + "temp" + ".txt", std::fstream::trunc | std::fstream::out);
+      ifile.open(dumpFilestr + ".txt");
+      dfilerst.open(dumpFilestr + "temp" + ".txt", std::fstream::trunc | std::fstream::out);
       for (int t = 0; t < (int) ntimestep_restart/nevery; t++){
         for (int i = 0; i < nsmc; i++)
           {
@@ -202,8 +205,8 @@ void FixDUMPSMC::restart(char * buf) {
       ifile.close();
       dfilerst.close();
 
-      ifile.open(dumpFile + "temp" + ".txt");
-      dfile.open(dumpFile + ".txt", std::fstream::trunc | std::fstream::out);
+      ifile.open(dumpFilestr + "temp" + ".txt");
+      dfile.open(dumpFilestr + ".txt", std::fstream::trunc | std::fstream::out);
       for (int t = 0; t < (int) ntimestep_restart/nevery; t++){
         for (int i = 0; i < nsmc; i++)
           {
