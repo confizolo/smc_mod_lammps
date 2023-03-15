@@ -42,12 +42,15 @@ namespace LAMMPS_NS
       double compute_array(int, int) override;
       double compute_scalar() override;
 
+      bool check_avl(long);
+      void compile_avl_list();
       void load_smc(long);
       void place_smc(long, long, bool);
       void remove_smc(long, long);
 
    private:
-      long *anch, *hing;
+      long *anch, *hing, *av_list;
+      long num_avl;
       int seed, smctype, smcbtype, smcbitype, lpol, adir, hdir, smcnum, initmode, ring;
       double prob, cutoff, kon, koff;
       double *xyzanch, *xyzhing;

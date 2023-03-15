@@ -190,6 +190,9 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
       anch[i] = -1;
     }
 
+    av_list = new long[atom->natoms];
+    num_avl = atom->natoms;
+
     random_equal = new RanPark(lmp, seed);
 
     // To get a different random number every time the program is executed
@@ -220,6 +223,8 @@ FixSMC::~FixSMC() {
 
   memory -> destroy(xyzanch);
   memory -> destroy(xyzhing);
+  
+  memory -> destroy(av_list);
 
 }
 
@@ -253,31 +258,22 @@ void FixSMC::init() {
 ------------------------------------------------------------------------- */
 
 void FixSMC::post_integrate() {
-  int m;
-  int man;
 
   if (update -> ntimestep == 1) {
 
-    //Initialize a random SMC within 2 beads of distance
-    int idhi;
-    int idan;
+    // Draw two random numbers for the unloading/loading
+    double lrand;
 
     // Define a random anchor position inside a monodisperse system with L=lpol
     // Define randomly the position of the smc hinge and anchors along one of the polymers
-    if (comm->me == 0){
-      for (int i = 0; i < smcnum; i++)
-      {
-        if (random_equal -> uniform() > kon){
-          continue;
-        }
-        load_smc(i);      
-      }
+    for (int i = 0; i < smcnum; i++)
+    {
+    if (comm -> me == 0) lrand = random_equal -> uniform();
+    MPI_Bcast( & lrand, 1, MPI_DOUBLE, 0, world);
+
+    if (lrand < kon) load_smc(i);
     }
-
-    // Cast the chosen position to each processor
-    MPI_Bcast(anch, smcnum, MPI_LONG, 0, world);
-    MPI_Bcast(hing, smcnum, MPI_LONG, 0, world);
-
+    
     MPI_Barrier(world);
 
     // for (int i = 0; i < smcnum; i++)
@@ -294,9 +290,35 @@ void FixSMC::post_integrate() {
 
     return;
 
-  } else if (update -> ntimestep % nevery) return;
+  } 
 
   else {
+    for (int i = 0; i < smcnum; i++) {
+
+      // Draw two random numbers for the unloading/loading
+      double lrand;
+
+      if (comm -> me == 0) lrand = random_equal -> uniform();
+
+      MPI_Bcast( & lrand, 1, MPI_DOUBLE, 0, world);
+
+      if ((anch[i]<0) || (hing[i]<0)){
+        if (lrand < kon) {
+          load_smc(i);
+          place_smc(anch[i],hing[i],true);
+        }
+      }
+      else{
+        if (lrand < koff) {
+          remove_smc(anch[i],hing[i]);
+          anch[i]=-1;
+          hing[i]=-1;
+        }
+      }
+    }
+  }
+
+  if (update -> ntimestep % nevery == 0){
 
     // Return if the smcs are still
     if ((hdir == 0) && (adir == 0)) return;
@@ -334,39 +356,14 @@ void FixSMC::post_integrate() {
     //   if ((debug)) utils::logmesg(lmp, "Anchors are" + std::to_string(anch[i]) + " " + std::to_string(hing[i]) + "\n");
     // }
 
+    double rand;
+
     for (int i = 0; i < smcnum; i++) {
-
-      // Draw two random numbers for the unloading/loading
-      double lrand;
-
-      if (comm -> me == 0) lrand = random_equal -> uniform();
-
-      MPI_Bcast( & lrand, 1, MPI_DOUBLE, 0, world);
-
-      if ((anch[i]<0) || (hing[i]<0)){
-        if (lrand < kon) {
-          if (comm->me==0) load_smc(i);
-          
-          // Cast the chosen position to each processor
-          MPI_Bcast(anch, smcnum, MPI_LONG, 0, world);
-          MPI_Bcast(hing, smcnum, MPI_LONG, 0, world);
-
-          place_smc(anch[i],hing[i],true);
-        }
-      }
-      else{
-        if (lrand < koff) {
-          remove_smc(anch[i],hing[i]);
-          anch[i]=-1;
-          hing[i]=-1;
-        }
-      }
-
+      
       // Check if smc are loaded
       if ((anch[i]<0) || (hing[i]<0)) continue;
 
       // Draw a random number for the jump attempt
-      double rand;
       if (comm -> me == 0) rand = random_equal -> uniform();
       MPI_Bcast( & rand, 1, MPI_DOUBLE, 0, world);
 
@@ -547,7 +544,7 @@ void FixSMC::post_integrate() {
 ------------------------------------------------------------------------- */
 
 double FixSMC::memory_usage() {
-  double bytes = 2 * smcnum * sizeof(long);
+  double bytes = 2 * smcnum * sizeof(long) + atom->natoms * sizeof(long);
   return bytes;
 }
 
@@ -638,67 +635,84 @@ double FixSMC::compute_array(int i, int flag) {
     else return hing[i];
   }
 }
+bool FixSMC::check_avl(long i){
+  long tmphing;
+  bool flag = 0;
 
-void FixSMC::load_smc(long i) {
-  if (comm->me==0) {
-    bool flag = 1;
-    while(flag){
-      if ((initmode == 0) || (update -> ntimestep > 1)) {
-        anch[i] = static_cast < int > (random_equal -> uniform() * atom -> natoms);
-      }
-      else if (initmode == 1) {
-        if (i * lpol >= atom -> natoms) anch[i] = static_cast < int > (random_equal -> uniform() * atom -> natoms);
-        else anch[i] = static_cast < int > (random_equal -> uniform() * lpol + i * lpol);
-      }
-      // Check if the smc is wrongly positioned (border conditions)
-      if ((anch[i] + 1) % lpol == 0) {
-        anch[i] -= 1;
-      }
-      if ((anch[i] - 1) % lpol == 1) {
-        anch[i] += 1;
-      }
-      if ((anch[i] + 1) % lpol == 1) {
-        anch[i] -= 2;
-      }
-      if (((anch[i] - 1) % lpol == 0)) {
-        anch[i] += 2;
-      }
-      if ((anch[i] == 0)) {
-        anch[i] += 3;
-      }
+  // Check if the smc is wrongly positioned (border conditions)
+  if (((i + 1) % lpol == 0) || ((i - 1) % lpol == 1) || ((i + 1) % lpol == 1) || (((i - 1) % lpol == 0)) || ((i == 0))) {
+    return 0;
+  }
 
-      // Instantiate the bead according to the direction
-      if (hdir != 0) hing[i] = anch[i] + 2 * hdir / abs(hdir);
-      else hing[i] = anch[i] - 2 * adir / abs(adir);
+  // Instantiate the bead according to the direction
+  if (hdir != 0) tmphing = i + 2 * hdir / abs(hdir);
+  else tmphing = i - 2 * adir / abs(adir);
 
-      flag = 0;
-      // Check if we are superimposing other beads
-      for (int j = 0; j < smcnum; j++) {
-        if (j==i) continue;
-        if (((anch[i] == anch[j]) || (hing[i] == hing[j])) || ((anch[i] == hing[j]) || (hing[i] == anch[j])) || ((anch[i] + 1) == anch[j]) || ((anch[i] - 1) == anch[j]) || ((hing[i] + 1) == anch[j]) || ((hing[i] - 1) == anch[j]) || ((anch[i] + 1) == hing[j]) || ((anch[i] - 1) == hing[j]) || ((hing[i] + 1) == hing[j]) || ((hing[i] - 1) == hing[j])) {
-          flag = 1;
-          break;
-        }
+  flag = 0;
+  // Check if we are superimposing other beads
+  for (int j = 0; j < smcnum; j++) {
+    if ((anch[j]<0) || (hing[j]<0)) continue;
+    if (((i == anch[j]) || (tmphing == hing[j])) || ((i == hing[j]) || (tmphing == anch[j])) || ((i + 1) == anch[j]) || ((i - 1) == anch[j]) || ((tmphing + 1) == anch[j]) || ((tmphing - 1) == anch[j]) || ((i + 1) == hing[j]) || ((i - 1) == hing[j]) || ((tmphing + 1) == hing[j]) || ((tmphing - 1) == hing[j])) {
+      flag = 1;
+      break;
+    }
+  }
+
+  if (flag) return 0;
+
+  if (connFix) {
+    // Check for conflicts with connected fix
+    for (int k = 0; k < connFix -> compute_scalar(); k++) {
+      if (connFix -> compute_array(k, 1) > atom -> natoms) continue;
+      if ((i >= connFix -> compute_array(k, 0)) && (i < (connFix -> compute_array(k, 1)))) {
+        flag = 1;
+        break;
       }
-
-      if (flag) continue;
-
-      if (connFix) {
-        // Check for conflicts with connected fix
-        for (int k = 0; k < connFix -> compute_scalar(); k++) {
-          if (connFix -> compute_array(k, 1) > atom -> natoms) continue;
-          if (((anch[i]) >= connFix -> compute_array(k, 0)) && ((anch[i]) < (connFix -> compute_array(k, 1)))) {
-            flag = 1;
-            break;
-          }
-          if (((hing[i]) >= connFix -> compute_array(k, 0)) && ((hing[i]) < (connFix -> compute_array(k, 1)))) {
-            flag = 1;
-            break;
-          }
-        }
+      if ((tmphing >= connFix -> compute_array(k, 0)) && (tmphing < (connFix -> compute_array(k, 1)))) {
+        flag = 1;
+        break;
       }
     }
   }
+
+  if (flag) return 0;
+
+  return 1;
+}
+
+void FixSMC::compile_avl_list(){
+  num_avl = 0;
+
+  for (int i = 1; i <= atom->natoms; i++)
+  {
+    if (check_avl(i)) {
+    av_list[num_avl] = i;
+    num_avl++;
+    }
+  }
+}
+
+void FixSMC::load_smc(long i) {
+  compile_avl_list();
+  if (num_avl < smcnum) error -> all(FLERR, "Not enough space for the smcs");
+  if (comm->me==0) {
+    if ((initmode == 1) && (i * lpol < atom -> natoms) && (update -> ntimestep  == 1)) {
+      do {
+      anch[i] = static_cast < int > (random_equal -> uniform() * lpol + i * lpol);
+      } while (not check_avl(anch[i]));
+    }
+    else{
+      anch[i] = av_list[static_cast < int > (random_equal -> uniform() * num_avl)];
+      // Instantiate the bead according to the direction
+    }  
+  }
+
+  if (hdir != 0) hing[i] = anch[i] + 2 * hdir / abs(hdir);
+  else hing[i] = anch[i] - 2 * adir / abs(adir);
+
+  // Cast the chosen position to each processor
+  MPI_Bcast(anch, smcnum, MPI_LONG, 0, world);
+  MPI_Bcast(hing, smcnum, MPI_LONG, 0, world);
 }
 
 void FixSMC::place_smc(long a, long h, bool newsmc) {
