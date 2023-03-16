@@ -159,6 +159,8 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
       initmode = 0;
     } else if (strcmp(arg[15], "distributed") == 0) {
       initmode = 1;
+    } else if (strcmp(arg[15], "full-distributed") == 0) {
+      initmode = 2;
     } else {
       error -> all(FLERR, "Illegal fix smc command, initmode not present");
     }
@@ -700,6 +702,9 @@ void FixSMC::load_smc(long i) {
       do {
       anch[i] = static_cast < int > (random_equal -> uniform() * lpol + i * lpol);
       } while (not check_avl(anch[i]));
+    }
+    else if ((initmode == 2) && (update -> ntimestep  == 1)) {
+      anch[i] = av_list[0];
     }
     else{
       anch[i] = av_list[static_cast < int > (random_equal -> uniform() * num_avl)];
