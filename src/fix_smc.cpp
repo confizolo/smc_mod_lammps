@@ -639,16 +639,19 @@ double FixSMC::compute_array(int i, int flag) {
 }
 bool FixSMC::check_avl(long i){
   long tmphing;
+  long mdbead;
   bool flag = 0;
-
-  // Check if the smc is wrongly positioned (border conditions)
-  if (((i + 1) % lpol == 0) || ((i - 1) % lpol == 1) || ((i + 1) % lpol == 1) || (((i - 1) % lpol == 0)) || ((i == 0))) {
-    return 0;
-  }
 
   // Instantiate the bead according to the direction
   if (hdir != 0) tmphing = i + 2 * hdir / abs(hdir);
   else tmphing = i - 2 * adir / abs(adir);
+
+  mdbead = (i + tmphing)/2;
+
+  // Check if the smc is wrongly positioned (border conditions)
+  if ((mdbead%lpol == 0) || (mdbead == 1)) {
+    return 0;
+  }
 
   flag = 0;
   // Check if we are superimposing other beads
@@ -685,18 +688,23 @@ bool FixSMC::check_avl(long i){
 void FixSMC::compile_avl_list(){
   num_avl = 0;
 
-  for (int i = 1; i <= atom->natoms; i++)
-  {
-    if (check_avl(i)) {
-    av_list[num_avl] = i;
-    num_avl++;
+  if (comm->me==0) {
+    for (int i = 1; i <= atom->natoms; i++)
+    {
+      if (check_avl(i)) {
+      av_list[num_avl] = i;
+      num_avl++;
+      }
     }
   }
+
+  MPI_Bcast(av_list, atom->natoms, MPI_LONG, 0, world);
+  MPI_Bcast( &num_avl, 1, MPI_DOUBLE, 0, world);
 }
 
 void FixSMC::load_smc(long i) {
   compile_avl_list();
-  if (num_avl < smcnum) error -> all(FLERR, "Not enough space for the smcs");
+  if (num_avl == 0) error -> all(FLERR, "Not enough space for the smcs");
   if (comm->me==0) {
     if ((initmode == 1) && (i * lpol < atom -> natoms) && (update -> ntimestep  == 1)) {
       do {
