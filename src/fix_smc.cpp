@@ -703,7 +703,7 @@ void FixSMC::compile_avl_list(){
 }
 
 void FixSMC::load_smc(long i) {
-  compile_avl_list();
+  int npol = atom->natoms % lpol;
   if (num_avl == 0) error -> all(FLERR, "Not enough space for the smcs");
   if (comm->me==0) {
     if ((initmode == 1) && (i * lpol < atom -> natoms) && (update -> ntimestep  == 1)) {
@@ -712,11 +712,13 @@ void FixSMC::load_smc(long i) {
       } while (not check_avl(anch[i]));
     }
     else if ((initmode == 2) && (update -> ntimestep  == 1)) {
-      anch[i] = av_list[0];
+      do {
+        anch[i] = static_cast < int > (random_equal -> uniform() * lpol + (i%npol) * lpol);
+      } while (not check_avl(anch[i]));
     }
     else{
+      compile_avl_list();
       anch[i] = av_list[static_cast < int > (random_equal -> uniform() * num_avl)];
-      // Instantiate the bead according to the direction
     }  
   }
 
