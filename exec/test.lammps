@@ -1,0 +1,83 @@
+variable seed1 equal 65905094
+variable seed2 equal 249184
+variable seed3 equal 534534534
+
+units lj
+atom_style angle
+boundary p p p
+neighbor 1.6 bin
+
+pair_style  lj/cut 2.5
+bond_style hybrid fene harmonic
+angle_style cosine
+
+neigh_modify every 1 delay 1 check yes
+read_data ../data/In_conf.Nb1000.RW4.fixed.dat extra/bond/per/atom 2
+#read_restart restart.200000
+####################################
+####	GROUPS	             #######
+####################################
+
+group dna type 1
+group all type 1 2 3
+
+#1 = dna
+#2 = smc ends
+
+####################################
+####    PAIR INTERACTIONS    #######
+####################################
+pair_style   lj/cut 1.12246
+pair_modify  shift yes
+pair_coeff   * * 1.0 1.0 1.12246
+
+####################################
+####    FENE BONDS           #######
+####################################
+bond_style hybrid fene harmonic
+special_bonds fene
+bond_coeff   1 fene  30.0   1.6  1.0  1.0
+bond_coeff   2 harmonic 10 1.1
+bond_coeff   3 fene  10.0   1.8 1.0  1.0
+
+####################################
+####    ANGLES                #######
+####################################
+angle_style cosine
+angle_coeff 1 20
+
+#########################
+#### SMC AND TOPO2  #####
+#########################
+variable probsmc equal 1
+variable lpol equal 1000
+variable cutoff equal 20
+variable ratesmc equal 1000
+variable nsmc equal 5
+
+######################################
+# INTEGRATION OF Equations of motion #
+######################################
+fix 1 dna   nve
+fix 2 all  langevin   1.0 1.0   1.0  ${seed2}
+fix smcrun all smc ${ratesmc} ${seed3} ${probsmc} ${lpol} ring -1 1 ${nsmc} 2 2 2 ${cutoff} random 1 0.00001
+fix smcdump all dumpsmc 1000 ${nsmc} zuppa smcrun
+######################
+#### CUSTOM INFO #####
+######################
+thermo 100000
+thermo_style   custom   step  temp  epair vol cpu
+timestep 0.01
+
+
+dump 1 all custom 1000 ../dumps/test3_prob${probsmc}_rate${ratesmc}_cutoff${cutoff}_dump_parallel.lammpstrj id type x y z 
+
+compute 1 all property/local batom1 batom2 btype
+compute 2 all protpos ${nsmc} smcrun
+dump 2 all local 10000 ../dumps/test3_prob${probsmc}_rate${ratesmc}_cutoff${cutoff}_bond_parallel.lammpstrj index c_1[1] c_1[2] c_1[3]
+
+restart 100000 restart.*
+run 1000000
+
+
+unfix smcrun
