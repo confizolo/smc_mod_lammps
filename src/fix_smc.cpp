@@ -726,6 +726,7 @@ void FixSMC::load_smc(long i) {
     else hing[i] = anch[i] - 2 * adir / abs(adir);
   }
 
+  MPI_Barrier(world);
   // Cast the chosen position to each processor
   MPI_Bcast(anch, smcnum, MPI_LONG, 0, world);
   MPI_Bcast(hing, smcnum, MPI_LONG, 0, world);
