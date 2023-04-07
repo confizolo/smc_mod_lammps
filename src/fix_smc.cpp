@@ -193,7 +193,7 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     }
 
     av_list = new long[atom->natoms];
-    num_avl = atom->natoms;
+    num_avl = atom->natoms / 4;
 
     random_equal = new RanPark(lmp, seed);
 
@@ -703,9 +703,9 @@ void FixSMC::compile_avl_list(){
 }
 
 void FixSMC::load_smc(long i) {
-  int npol = atom->natoms % lpol;
-  if (num_avl == 0) error -> all(FLERR, "Not enough space for the smcs");
   if (comm->me==0) {
+    int npol = atom->natoms / lpol;
+
     if ((initmode == 1) && (i * lpol < atom -> natoms) && (update -> ntimestep  == 1)) {
       do {
       anch[i] = static_cast < int > (random_equal -> uniform() * lpol + i * lpol);
@@ -720,10 +720,11 @@ void FixSMC::load_smc(long i) {
       compile_avl_list();
       anch[i] = av_list[static_cast < int > (random_equal -> uniform() * num_avl)];
     }  
-  }
+    if (num_avl == 0) error -> all(FLERR, "Not enough space for the smcs");
 
-  if (hdir != 0) hing[i] = anch[i] + 2 * hdir / abs(hdir);
-  else hing[i] = anch[i] - 2 * adir / abs(adir);
+    if (hdir != 0) hing[i] = anch[i] + 2 * hdir / abs(hdir);
+    else hing[i] = anch[i] - 2 * adir / abs(adir);
+  }
 
   // Cast the chosen position to each processor
   MPI_Bcast(anch, smcnum, MPI_LONG, 0, world);
