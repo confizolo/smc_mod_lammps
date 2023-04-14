@@ -710,22 +710,18 @@ void FixSMC::load_smc(long i) {
   if (comm->me==0) {
     int npol = atom->natoms / lpol;
 
-    std::cout << npol << " " << i << std::endl;
     if ((initmode == 1) && (i * lpol < atom -> natoms) && (update -> ntimestep  == 1)) {
       do {
         anch[i] = static_cast < int > (random_equal -> uniform() * lpol + i * lpol);
-        std::cout << anch[i] << std::endl;
       } while (! check_avl(anch[i]));
     }
     else if ((initmode == 2) && (update -> ntimestep  == 1)) {
       do {
         anch[i] = static_cast < int > (random_equal -> uniform() * lpol + (i%npol) * lpol);
-        std::cout << anch[i] << std::endl;
       } while (! check_avl(anch[i]));
     }
     else{
       anch[i] = av_list[static_cast < int > (random_equal -> uniform() * num_avl)];
-      std::cout << anch[i] << std::endl;
     }  
     if (num_avl == 0) error -> all(FLERR, "Not enough space for the smcs");
 
