@@ -685,7 +685,7 @@ bool FixSMC::check_avl(long i){
   return 1;
 }
 
-void FixSMC::compile_avl_list_new(){
+void FixSMC::compile_avl_list(){
   num_avl = 0;
 
   int atoms_per_rank = atom->natoms / comm->nprocs;
