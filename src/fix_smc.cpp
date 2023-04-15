@@ -685,24 +685,50 @@ bool FixSMC::check_avl(long i){
   return 1;
 }
 
-void FixSMC::compile_avl_list(){
+void FixSMC::compile_avl_list_new(){
   num_avl = 0;
 
-  if (comm->me==0) {
-    for (int i = 1; i <= atom->natoms; i++)
-    {
-      if (check_avl(i)) {
-      av_list[num_avl] = i;
-      num_avl++;
-      }
+  int atoms_per_rank = atom->natoms / comm->nprocs;
+
+  long min = comm->me * atoms_per_rank + 1;
+  long max = comm->me * atoms_per_rank + atoms_per_rank;
+
+  if (comm->me == comm->nprocs-1) max = atom->natoms;
+  
+  int size = max - min + 1;
+  long temp_num_avl = 0;
+  long * temp_avl_list = new long[size];
+
+  std::fill(temp_avl_list, temp_avl_list + size, atom->natoms + 1);
+
+  int displs[comm->nprocs];
+  int rcounts[comm->nprocs];
+
+  for (int i = 0; i < comm->nprocs; i++)
+  {
+    displs[i] = i * atoms_per_rank;
+    rcounts[i] = atoms_per_rank;
+  }
+
+  rcounts[comm->nprocs - 1] = atom->natoms - atoms_per_rank * (comm->nprocs - 1);
+
+  for (int i = min; i <= max  ; i++)
+  {
+    if (check_avl(i)) {
+    temp_avl_list[temp_num_avl] = i;
+    temp_num_avl++;
     }
-  }  
+  }
   
   MPI_Barrier(world);
 
-  MPI_Bcast(av_list, atom->natoms, MPI_LONG, 0, world);
-  MPI_Bcast( &num_avl, 1, MPI_DOUBLE, 0, world);
+  MPI_Allreduce(&temp_num_avl, &num_avl, 1, MPI_LONG, MPI_SUM, world);
 
+  MPI_Allgatherv(temp_avl_list, size, MPI_LONG, av_list, rcounts, displs, MPI_LONG, world);
+
+  std::sort(av_list, av_list + atom->natoms);
+
+  delete temp_avl_list;
 }
 
 void FixSMC::load_smc(long i) {
