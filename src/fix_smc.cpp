@@ -649,7 +649,7 @@ bool FixSMC::check_avl(long i){
   mdbead = (i + tmphing)/2;
 
   // Check if the smc is wrongly positioned (border conditions)
-  if ((mdbead%lpol == 0) || (mdbead == 1)) {
+  if ((mdbead%lpol == 1) || (mdbead == 1) || (mdbead%lpol == 0)) {
     return 0;
   }
 
@@ -733,6 +733,7 @@ void FixSMC::load_smc(long i) {
   // Cast the chosen position to each processor
   MPI_Bcast(anch, smcnum, MPI_LONG, 0, world);
   MPI_Bcast(hing, smcnum, MPI_LONG, 0, world);
+
 }
 
 void FixSMC::place_smc(long a, long h, bool newsmc) {
