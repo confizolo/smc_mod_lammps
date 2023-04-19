@@ -294,33 +294,7 @@ void FixSMC::post_integrate() {
 
   } 
 
-  else {
-    for (int i = 0; i < smcnum; i++) {
-
-      // Draw two random numbers for the unloading/loading
-      double lrand;
-
-      if (comm -> me == 0) lrand = random_equal -> uniform();
-
-      MPI_Bcast( & lrand, 1, MPI_DOUBLE, 0, world);
-
-      if ((anch[i]<0) || (hing[i]<0)){
-        if (lrand < kon) {
-          load_smc(i);
-          place_smc(anch[i],hing[i],true);
-        }
-      }
-      else{
-        if (lrand < koff) {
-          remove_smc(anch[i],hing[i]);
-          anch[i]=-1;
-          hing[i]=-1;
-        }
-      }
-    }
-  }
-
-  if (update -> ntimestep % nevery == 0){
+  else if (update -> ntimestep % nevery == 0){
 
     // Return if the smcs are still
     if ((hdir == 0) && (adir == 0)) return;
@@ -361,7 +335,30 @@ void FixSMC::post_integrate() {
     double rand;
 
     for (int i = 0; i < smcnum; i++) {
-      
+
+      // Draw two random numbers for the unloading/loading
+      double lrand;
+
+      if (comm -> me == 0) lrand = random_equal -> uniform();
+
+      MPI_Bcast( & lrand, 1, MPI_DOUBLE, 0, world);
+
+      if ((anch[i]<0) || (hing[i]<0)){
+        if (lrand < kon) {
+          load_smc(i);
+          place_smc(anch[i],hing[i],true);
+        }
+      }
+      else{
+        if (lrand < koff) {
+          remove_smc(anch[i],hing[i]);
+          anch[i]=-1;
+          hing[i]=-1;
+        }
+      }
+
+      MPI_Barrier(world);
+
       // Check if smc are loaded
       if ((anch[i]<0) || (hing[i]<0)) continue;
 
