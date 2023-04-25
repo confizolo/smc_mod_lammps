@@ -11,7 +11,7 @@
 LAMMPS=""
 LAMMPSparallel="/Users/s2469797/Documents/lammps_testing/build/lmp"
 
-lscript="test.lammps"
+lscript="test.lammps.example"
 
 ncpu=6
 

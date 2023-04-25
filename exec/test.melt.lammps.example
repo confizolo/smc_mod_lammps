@@ -82,7 +82,7 @@ angle_coeff  * ${lp} #20 sigma for realistic DNA (1 bead = 2.5 nm)
 ######################
 #### CUSTOM INFO #####
 ######################
-thermo 100000
+thermo 10000
 thermo_style   custom step  temp  epair ebond eangle vol cpu
 
 
@@ -93,7 +93,7 @@ variable prob equal 1
 variable lpol equal 1000
 variable cutoff equal 1.5
 variable rate equal 10000
-variable nsmc equal 10
+variable nsmc equal 5000
 
 ####################################
 ####	FIXES	             #######
@@ -101,7 +101,8 @@ variable nsmc equal 10
 timestep 0.01
 fix 1 all nve  
 fix 2 all langevin   ${Temp} ${Temp} ${tdamp}  ${seedthermo}
-fix 3 all smc ${rate} 234224 ${prob} ${lpol} -1 1 ${nsmc} 2 2 2 ${cutoff}
+fix smcrun all smc ${rate} 213312 ${prob} ${lpol} linear -1 1 ${nsmc} 2 2 2 ${cutoff} distributed 1 0.00001
+fix smcdump all dumpsmc 1000 ${nsmc} smcpos smcrun
 
 #Useful commands when running in parallel
 #comm_style tiled
