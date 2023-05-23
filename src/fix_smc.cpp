@@ -214,10 +214,10 @@ FixSMC::~FixSMC() {
   int idhi;
   int idan;
 
-  // Loop over the SMCs instantiated and remove
-  for (int i = 0; i < smcnum; i++) {
-    remove_smc(anch[i], hing[i]);
-  }
+  // // Loop over the SMCs instantiated and remove
+  // for (int i = 0; i < smcnum; i++) {
+  //   remove_smc(anch[i], hing[i]);
+  // }
 
   delete random_equal;
   delete anch;
