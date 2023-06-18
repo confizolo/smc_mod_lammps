@@ -9,11 +9,11 @@
 
 #SBATCH --mem-per-cpu=512
 LAMMPS=""
-LAMMPSparallel="/Users/s2469797/Documents/lammps_testing/build/lmp"
+LAMMPSparallel="/home/zy/Documents/tap/lammps-stable_23Jun2022_update4/build/lmp"
 
 lscript="test.lammps.example"
 
-ncpu=6
+ncpu=1
 
 cwd=`pwd`
  

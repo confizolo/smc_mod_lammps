@@ -326,10 +326,11 @@ void FixSMC::post_integrate() {
     int idan;
 
     double jrand;
-
+    double krand;
 
     bool flag = 0;
     bool l_flag = 0;
+
     int tempadir = 0;
     int temphdir = 0;
 
@@ -352,10 +353,10 @@ void FixSMC::post_integrate() {
 
       adir = maxadir * jrand - 1;
 
-      if (comm -> me == 0) jrand = random_equal -> uniform();
-      MPI_Bcast( & jrand, 1, MPI_DOUBLE, 0, world);
+      if (comm -> me == 0) krand = random_equal -> uniform();
+      MPI_Bcast( & krand, 1, MPI_DOUBLE, 0, world);
 
-      hdir = maxhdir * jrand + 1;
+      hdir = maxhdir * krand + 1;
 
       tempadir = adir;
       temphdir = hdir;

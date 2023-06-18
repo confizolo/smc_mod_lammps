@@ -22,39 +22,47 @@ group dna type 1
 ####################################
 pair_style   lj/cut 1.12246
 pair_modify  shift yes
-pair_coeff   * * 1.0 1.0 1.12246
+pair_coeff   * * 1.0 1.0 1.12246 # purely repulsive
 
 ####################################
 ####    FENE BONDS           #######
 ####################################
 bond_style hybrid fene harmonic
 special_bonds fene
-bond_coeff   1 fene  30.0   1.6  1.0  1.0
-bond_coeff   2 harmonic 10 1.1
-bond_coeff   3 fene  10.0   1.8 1.0  1.0
+bond_coeff   1 fene  30.0   1.5  1.0  1.12246 # K (scaling), R_0 (maximum extent), E_0, r_0 (LJ potential minimum)
+bond_coeff   2 harmonic 100 1.1 # K, r_0 = equilibrium length, which is quite small
+bond_coeff   3 fene  10.0  1.7 1.0  1.12246
 
 ####################################
 ####    ANGLES                #######
 ####################################
 angle_style cosine
-angle_coeff 1 20
+angle_coeff 1 5
 
 #########################
 #### SMC AND TOPO2  #####
 #########################
 variable probsmc equal 1
 variable lpol equal 1000
-variable cutoff equal 20
+variable cutoff equal 1.2
 variable ratesmc equal 1000
-variable nsmc equal 5
+variable nsmc equal 1
 
 ######################################
 # INTEGRATION OF Equations of motion #
 ######################################
 fix 1 dna   nve
 fix 2 all  langevin   1.0 1.0   1.0  ${seed2}
-fix smcrun all smc ${ratesmc} ${seed3} ${probsmc} ${lpol} ring -1 1 ${nsmc} 2 3 2 ${cutoff} random 1 0.00001
-fix smcdump all dumpsmc 1000 ${nsmc} zuppa smcrun
+
+# let it equilibrate first? 
+run 10000
+
+fix smcrun all smc ${ratesmc} ${seed3} ${probsmc} ${lpol} linear -1 1 ${nsmc} 2 3 2 ${cutoff} random 1 0.00001
+fix smcdump all dumpsmc 1000 ${nsmc} zuppa_1_rate_1000_check_repr_1 smcrun
+
+# 2 3 2:
+# atom type, bond type after first, bond type at first
+# atom type 2, fene bond after deploy, harmonic bond at first
 
 ######################
 #### CUSTOM INFO #####
