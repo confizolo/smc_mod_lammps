@@ -327,19 +327,11 @@ void FixSMC::post_integrate() {
 
     double jrand;
 
-    if (comm -> me == 0) jrand = random_equal -> uniform();
-    MPI_Bcast( & jrand, 1, MPI_DOUBLE, 0, world);
 
-    adir = maxadir * jrand - 1;
-
-    if (comm -> me == 0) jrand = random_equal -> uniform();
-    MPI_Bcast( & jrand, 1, MPI_DOUBLE, 0, world);
-
-    hdir = maxhdir * jrand + 1;
-
-    int tempadir = adir;
-    int temphdir = hdir;
     bool flag = 0;
+    bool l_flag = 0;
+    int tempadir = 0;
+    int temphdir = 0;
 
     // for (int i = 0; i < smcnum; i++)
     // { 
@@ -349,6 +341,24 @@ void FixSMC::post_integrate() {
     double rand;
 
     for (int i = 0; i < smcnum; i++) {
+      for (int l_sample = 0; l_sample < abs(maxadir))
+      {
+
+      // roll new movement step size (left or right)
+      // but.... should adir and hdir be independent? they should right
+
+      if (comm -> me == 0) jrand = random_equal -> uniform();
+      MPI_Bcast( & jrand, 1, MPI_DOUBLE, 0, world);
+
+      adir = maxadir * jrand - 1;
+
+      if (comm -> me == 0) jrand = random_equal -> uniform();
+      MPI_Bcast( & jrand, 1, MPI_DOUBLE, 0, world);
+
+      hdir = maxhdir * jrand + 1;
+
+      tempadir = adir;
+      temphdir = hdir;
 
       // Draw two random numbers for the unloading/loading
       double lrand;
@@ -374,14 +384,16 @@ void FixSMC::post_integrate() {
       MPI_Barrier(world);
 
       // Check if smc are loaded
-      if ((anch[i]<0) || (hing[i]<0)) continue;
+      // change to `continue` if removing the l_sample loop
+      if ((anch[i]<0) || (hing[i]<0)) break;
 
       // Draw a random number for the jump attempt
       if (comm -> me == 0) rand = random_equal -> uniform();
       MPI_Bcast( & rand, 1, MPI_DOUBLE, 0, world);
 
+      // change to `continue` if removing the l_sample loop
       if (rand > prob) {
-        continue;
+        break;
       }
 
       // Temporary direction if the smc is going towards the polymer end or another smc bead
@@ -429,8 +441,9 @@ void FixSMC::post_integrate() {
         else if (((hing[i] + temphdir) == hing[j]) || ((hing[i] + temphdir) == anch[j])) temphdir = 0;
       }
 
+      // change to `continue` if removing the l_sample loop
       if (flag) {
-        continue;
+        break;
       }
       
       if ((debug)) utils::logmesg(lmp, "SMC {} Current anchor {}, current hinge {}; next anchor {}, next hinge {} \n", i,anch[i],hing[i],anch[i]+tempadir,hing[i]+temphdir);
@@ -446,8 +459,8 @@ void FixSMC::post_integrate() {
 
       for (int j = 0; j < nblockt ; j++)
       {
-          if ((((mannew = idnewan) >= 0) && (idnewan < atom -> nlocal)) && atom -> type[mannew] == blockt[j]) {tempadir = 0; MPI_Bcast(&tempadir,1,MPI_INT,comm->me,world);}
-          if ((((mnew = idnewhi) >= 0) && (idnewhi < atom -> nlocal)) && atom -> type[mnew] == blockt[j]) {tempadir = 0; MPI_Bcast(&tempadir,1,MPI_INT,comm->me,world);}
+          if ((((idnewan) >= 0) && (idnewan < atom -> nlocal)) && atom -> type[idnewan] == blockt[j]) {tempadir = 0; MPI_Bcast(&tempadir,1,MPI_INT,comm->me,world);}
+          if ((((idnewhi) >= 0) && (idnewhi < atom -> nlocal)) && atom -> type[idnewhi] == blockt[j]) {temphdir = 0; MPI_Bcast(&temphdir,1,MPI_INT,comm->me,world);}
       }
 
       MPI_Barrier(world);
@@ -517,24 +530,30 @@ void FixSMC::post_integrate() {
         dist += (xyzanch[k] - xyzhing[k]) * (xyzanch[k] - xyzhing[k]);
       }
 
-      // if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Number of counts is " + std::to_string(anchcounts[0]) + " Anchor " + std::to_string(hingcounts[0]) + " Hinge " + "\n");
-      // if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Proposed distance is " + std::to_string(sqrt(dist)) + "\n");
+      if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Number of counts is " + std::to_string(anchcounts[0]) + " Anchor " + std::to_string(hingcounts[0]) + " Hinge " + "\n");
+      if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Proposed distance is " + std::to_string(sqrt(dist)) + "\n");
 
       // Check if the distance is small enough to run the jump
       if (!(dist > cutoff * cutoff || (anchcounts[0] == 0) || (hingcounts[0] == 0))) {
         
         if ((temphdir!=0) || (tempadir!=0)){
-          remove_smc(anch[i], hing[i]);
-          place_smc(anch[i] + tempadir, hing[i] + temphdir, false);
+          l_flag = True
+          break
         }
-
-        anch[i] += tempadir;
-        hing[i] += temphdir;
-
       }
       // Barrier to check that each processor has defined correctly each smc
       MPI_Barrier(world);
-    }
+
+    } // loop over samples
+    if (l_flag){
+      remove_smc(anch[i], hing[i]);
+      place_smc(anch[i] + tempadir, hing[i] + temphdir, false);
+      anch[i] += tempadir;
+      hing[i] += temphdir;
+
+    } 
+  } // loop over smc
+
 
     memory -> destroy(xyzanch);
     memory -> destroy(xyzhing);
