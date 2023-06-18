@@ -342,8 +342,7 @@ void FixSMC::post_integrate() {
     double rand;
 
     for (int i = 0; i < smcnum; i++) {
-      for (int l_sample = 0; l_sample < abs(maxadir))
-      {
+      for (int l_sample = 0; l_sample < abs(maxadir)){
 
       // roll new movement step size (left or right)
       // but.... should adir and hdir be independent? they should right
@@ -538,8 +537,8 @@ void FixSMC::post_integrate() {
       if (!(dist > cutoff * cutoff || (anchcounts[0] == 0) || (hingcounts[0] == 0))) {
         
         if ((temphdir!=0) || (tempadir!=0)){
-          l_flag = True
-          break
+          l_flag = 1;
+          break;
         }
       }
       // Barrier to check that each processor has defined correctly each smc
