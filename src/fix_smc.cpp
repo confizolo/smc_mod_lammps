@@ -350,12 +350,11 @@ void FixSMC::post_integrate() {
       if (comm -> me == 0) jrand = random_equal -> uniform();
       MPI_Bcast( & jrand, 1, MPI_DOUBLE, 0, world);
 
-      adir = maxadir * jrand - 1;
-
       if (comm -> me == 0) krand = random_equal -> uniform();
       MPI_Bcast( & krand, 1, MPI_DOUBLE, 0, world);
 
-      hdir = maxhdir * krand + 1;
+      adir = round(maxadir * jrand);
+      hdir = round(maxhdir * krand);
 
       tempadir = adir;
       temphdir = hdir;
