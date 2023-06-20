@@ -56,8 +56,6 @@ namespace LAMMPS_NS
       double *xyzanch, *xyzhing;
       bool debug;
       class RanPark *random_equal;
-      class Fix *connFix;
-      char *connFixName;
    };
 
 } // namespace LAMMPS_NS

@@ -82,48 +82,55 @@ const char cite_fix_smc[] =
 
 FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
   Fix(lmp, narg, arg),
-  anch(nullptr), hing(nullptr), smctype(0), smcbtype(0), smcnum(0), debug(0), connFix(nullptr) {
+  anch(nullptr), hing(nullptr), debug(0) {
     if (lmp -> citeme) lmp -> citeme -> add(cite_fix_smc);
     // Number of arguments for the fix. The first three arguments are parsed by Fix base class constructor.
-    // The rest are specific to this fix. 11 are mandatory
+    // The rest are specific to this fix. 15 are mandatory
     // 4. nevery: Attempt the jump every nevery iteration
-    // 5. seed: random seed
-    // 6. prob: probability to attempt the jump
-    // 7. lpol: length of polymer(s)
-    // 8. poltype: give the form of the polymer (either linear or ring)
+    // 5. seed: seed for random number draw
+    // 6. prob: probability to accept proposed movement
+    // 7. lpol: length of polymer(s) in solution
+    // 8. poltype: select shape of polymer(s) (either "linear" or "ring")
     // 9. adir: attempted movement of anchor (next attempted atom id: current anchor + adir)
     // 10. hdir: attempted movement of hinge (next attempted atom id: current hinge + hdir)
-    // 11. smcnum: number of deployed smcs
-    // 12. smctype: atom type of anchoring beads
-    // 13. smcbtype: bond type of anchoring beads after the first deployment
-    // 14. smcbitype: bond type of anchoring beads at the first deployment
-    // 15. cutoff: distance cutoff for attempted movements (Jump is accepted only if distance between new anchor and hinge is below the cutoff)
-    // 16. initmode: random or distributed according to uswe
-    // 17. kon: loading probability 
-    // 18. koff: unloading probability
-    // 19. FixID: Name of ID to get informations about 
+    // 11. smcnum: number of deployed SMCs
+    // 12. smctype: atom type of beads representing SMCs' ends
+    // 13. smcbtype: SMCs' bond type after the first deployment
+    // 14. smcbitype: SMCs' bond type at the first deployment
+    // 15. cutoff: distance cutoff for attempted movements (these are is accepted only if distance between new anchor and hinge is below the cutoff)
+    // 16. initmode: define initialisation mode of extruders:
+    //    1.  "random": deploys randomly the SMCs
+    //    2.  "distributed": assign at least one SMC per polymer and then distribute remaining randomly
+    //    3.  "full-distributed": distributes evenly SMCs over the polymers
+    // 17. kon: probability to load a free extruder every nevery step
+    // 18. koff: probability to unload an extruder every nevery step
 
-    if ((narg != 18) && (narg != 19)) error -> all(FLERR, "Illegal fix smc command");
+    // Check on the number of arguments given to the fix
+    if (narg != 18) error -> all(FLERR, "Illegal fix smc command");
 
     nevery = utils::inumeric(FLERR, arg[3], false, lmp);
     if (nevery <= 0) error -> all(FLERR, "Illegal fix smc command");
 
-    // Flag to activate dump in restart file of fix smc structure
+    // Flag to activate dump in restart file
     restart_global = 1;
 
-    // Activate flag for array and scalar returning
+    // Activate flag for array and scalar return
     scalar_flag = 1;
     array_flag = 1;
 
+    // Define the seed using during generation of random numbers
     seed = utils::inumeric(FLERR, arg[4], false, lmp);
 
+    // Define acceptance probability for movements
     prob = utils::numeric(FLERR, arg[5], false, lmp);
     if (prob < 0.0 || prob > 1.0)
       error -> all(FLERR, "Illegal fix topo2 command");
 
+    // Define lenght of polymer(s) present in simulation to check boundary conditions
     lpol = utils::inumeric(FLERR, arg[6], false, lmp);
     if (lpol <= 0) error -> all(FLERR, "Illegal fix smc command");
 
+    // Define type of extrusion according to the kind of polymer(s) present in simulation
     if (strcmp(arg[7], "linear") == 0) {
       ring = 0;
     } else if (strcmp(arg[7], "ring") == 0) {
@@ -132,29 +139,37 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
       error -> all(FLERR, "Illegal fix smc command, indefinite polymer type");
     }
 
+    // Define movement of SMCs' anchor
     adir = utils::inumeric(FLERR, arg[8], false, lmp);
 
+    // Define movement of SMCs' hinge
     hdir = utils::inumeric(FLERR, arg[9], false, lmp);
     if (hdir * adir >= 0) error -> all(FLERR, "Illegal fix smc command, hinge and must not have same direction");
 
+    // Define number of SMCs to deploy
     smcnum = utils::inumeric(FLERR, arg[10], false, lmp);
     if (smcnum <= 0) error -> all(FLERR, "Illegal fix smc command");
 
+    // Define atom type of SMCs' ends
     smctype = utils::inumeric(FLERR, arg[11], false, lmp);
     if (smctype <= 0) error -> all(FLERR, "Illegal fix smc command");
 
+    // Define deployment bond type of SMCs
     smcbtype = utils::inumeric(FLERR, arg[12], false, lmp);
     if (smcbtype <= 0) error -> all(FLERR, "Illegal fix smc command");
 
+    // Define deployment bond type of SMCs after the first movement
     smcbitype = utils::inumeric(FLERR, arg[13], false, lmp);
     if (smcbitype <= 0) error -> all(FLERR, "Illegal fix smc command");
 
+    // Define distance cutoff to be checked before SMCs' movement
     cutoff = utils::numeric(FLERR, arg[14], false, lmp);
     if (cutoff < 0)
       error -> all(FLERR, "Illegal fix smc command");
 
     initmode = 0;
 
+    // Define init mode for SMCs' deployment 
     if (strcmp(arg[15], "random") == 0) {
       initmode = 0;
     } else if (strcmp(arg[15], "distributed") == 0) {
@@ -165,21 +180,15 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
       error -> all(FLERR, "Illegal fix smc command, initmode not present");
     }
 
+    // Define loading probability of one SMC on simulation polymers
     kon = utils::numeric(FLERR, arg[16], false, lmp);
     if ((kon <= 0) || (kon>1))
       error -> all(FLERR, "Illegal fix smc command, kon is out of the interval (0,1]");
 
+    // Define unloading probability of one SMC on simulation polymers
     koff = utils::numeric(FLERR, arg[17], false, lmp);
     if ((koff < 0) || (koff>1))
       error -> all(FLERR, "Illegal fix smc command, koff is out of the interval [0,1]");
-
-    if (narg == 19) {
-      connFixName = new char[static_cast < int > (sizeof(arg[18]) / sizeof(char))];
-      std::copy(arg[18], arg[18] + static_cast < int > (sizeof(arg[18]) / sizeof(char)), connFixName);
-    } else {
-      connFixName = new char[5];
-      connFixName = "nofix";
-    }
 
     xyzanch = nullptr;
     xyzhing = nullptr;
@@ -187,14 +196,17 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     anch = new long[smcnum];
     hing = new long[smcnum];
 
+    // Initialise SMC positions
     for (int i = 0; i < smcnum; i++) {
       hing[i] = -1;
       anch[i] = -1;
     }
 
+    // Initialise list of available positions
     av_list = new long[atom->natoms];
     num_avl = atom->natoms / 4;
 
+    // Initialise seed generator
     random_equal = new RanPark(lmp, seed);
 
     // To get a different random number every time the program is executed
@@ -204,21 +216,13 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
 /* ---------------------------------------------------------------------- */
 
 FixSMC::~FixSMC() {
-  int m;
-  int man;
 
-  // Get bond histories to apply bond changes
-  auto histories = modify -> get_fix_by_style("BOND_HISTORY");
-  int n_histories = histories.size();
-
-  int idhi;
-  int idan;
-
-  // // Loop over the SMCs instantiated and remove
+  // // Loop over the instantiated SMCs, remove bonds and change types
   // for (int i = 0; i < smcnum; i++) {
   //   remove_smc(anch[i], hing[i]);
   // }
 
+  // Deleting pointers
   delete random_equal;
   delete anch;
   delete hing;
@@ -242,16 +246,9 @@ int FixSMC::setmask() {
 
 void FixSMC::init() {
 
+  // Check if pair and bond styles are initialised
   if (force -> pair == nullptr || force -> bond == nullptr)
     error -> all(FLERR, "Fix smc requires pair and bond styles");
-
-  // Store the connected Fix ID pointer
-  if (utils::strmatch(connFixName, "nofix") == 1) {
-    connFix = nullptr;
-  } else {
-    connFix = modify -> get_fix_by_id(connFixName);
-    if (!connFix) error -> all(FLERR, "Illegal ausiliary Fix");
-  }
 
 }
 
@@ -263,11 +260,9 @@ void FixSMC::post_integrate() {
 
   if (update -> ntimestep == 1) {
 
-    // Draw two random numbers for the unloading/loading
     double lrand;
 
-    // Define a random anchor position inside a monodisperse system with L=lpol
-    // Define randomly the position of the smc hinge and anchors along one of the polymers
+    // Load SMCs according to kon probability
     for (int i = 0; i < smcnum; i++)
     {
     if (comm -> me == 0) lrand = random_equal -> uniform();
@@ -278,14 +273,13 @@ void FixSMC::post_integrate() {
     
     MPI_Barrier(world);
 
-    // for (int i = 0; i < smcnum; i++)
-    // { 
-    //   if ((debug)) utils::logmesg(lmp, "Anchors are" + std::to_string(anch[i]) + " " + std::to_string(hing[i]) + "\n");
-    // }
+    for (int i = 0; i < smcnum; i++)
+    { 
+      if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Anchors are" + std::to_string(anch[i]) + " " + std::to_string(hing[i]) + "\n");
+    }
 
-    // Create bonds according to chosen beads
     for (int i = 0; i < smcnum; i++) {
-      // Check if smc are loaded
+      // Place the loaded SMCs
       if ((anch[i]<0) || (hing[i]<0)) continue;
       place_smc(anch[i],hing[i], true);
     }
@@ -294,9 +288,10 @@ void FixSMC::post_integrate() {
 
   } 
 
+  // Propose movements with a fixed frequency
   else if (update -> ntimestep % nevery == 0){
 
-    // Return if the smcs are still
+    // If movement is disabled along both directions stop execution
     if ((hdir == 0) && (adir == 0)) return;
 
     double * xyzanchtemp = nullptr;
@@ -327,11 +322,6 @@ void FixSMC::post_integrate() {
     int temphdir = hdir;
     bool flag = 0;
 
-    // for (int i = 0; i < smcnum; i++)
-    // { 
-    //   if ((debug)) utils::logmesg(lmp, "Anchors are" + std::to_string(anch[i]) + " " + std::to_string(hing[i]) + "\n");
-    // }
-
     double rand;
 
     for (int i = 0; i < smcnum; i++) {
@@ -343,6 +333,7 @@ void FixSMC::post_integrate() {
 
       MPI_Bcast( & lrand, 1, MPI_DOUBLE, 0, world);
 
+      // Load/Unload SMC according to the kon/koff probability
       if ((anch[i]<0) || (hing[i]<0)){
         if (lrand < kon) {
           load_smc(i);
@@ -359,13 +350,14 @@ void FixSMC::post_integrate() {
 
       MPI_Barrier(world);
 
-      // Check if smc are loaded
+      // Check if SMC is loaded
       if ((anch[i]<0) || (hing[i]<0)) continue;
 
       // Draw a random number for the jump attempt
       if (comm -> me == 0) rand = random_equal -> uniform();
       MPI_Bcast( & rand, 1, MPI_DOUBLE, 0, world);
 
+      // First accept the move with a certain probability prob
       if (rand > prob) {
         continue;
       }
@@ -374,8 +366,7 @@ void FixSMC::post_integrate() {
       tempadir = adir;
       temphdir = hdir;
 
-      // Check if we are going to the polymer border on one side or on the other
-
+      // Check if the SMCs' ends are moving over the polymer ends
       if (hdir / abs(hdir) < 0) {
         if ((hing[i] + hdir) % lpol == 0){
           if (!ring) temphdir = 0;
@@ -398,19 +389,8 @@ void FixSMC::post_integrate() {
           else tempadir = 1-lpol;
         }
       }
-      
-      if (connFix) {
-        // Check for conflicts with connected fix
-        for (int k = 0; k < connFix -> compute_scalar(); k++) {
-          if (((anch[i] + adir) >= connFix -> compute_array(k, 0)) && ((anch[i] + adir) < (connFix -> compute_array(k, 1)))) {
-            tempadir = 0;
-          }
-          if (((hing[i] + hdir) >= connFix -> compute_array(k, 0)) && ((hing[i] + hdir) < (connFix -> compute_array(k, 1)))) {
-            temphdir = 0;
-          }
-        }
-      }
 
+      // Skip movement if both the ends are not moving
       if ((tempadir == 0) && (temphdir == 0)) continue;
 
       // Check if the new movement is forbidden because of superposition of SMCs
@@ -433,13 +413,15 @@ void FixSMC::post_integrate() {
         continue;
       }
 
-      // if ((debug)) utils::logmesg(lmp, "SMC {} Current anchor {}, current hinge {}; next anchor {}, next hinge {} \n", i,anch[i],hing[i],anch[i]+tempadir,hing[i]+temphdir);
+      if ((comm->me==0) && (debug)) utils::logmesg(lmp, "SMC {} Current anchor {}, current hinge {}; next anchor {}, next hinge {} \n", i,anch[i],hing[i],anch[i]+tempadir,hing[i]+temphdir);
 
+      // Finding local identifier of the atom
       idnewhi = atom -> map(hing[i] + temphdir);
       idhi = atom -> map(hing[i]);
       idnewan = atom -> map(anch[i] + tempadir);
       idan = atom -> map(anch[i]);
 
+      
       memory -> destroy(xyzanchtemp);
       memory -> create(xyzanchtemp, 3, "FixSMC::post_integrate()");
       memory -> destroy(xyzhingtemp);
@@ -465,7 +447,7 @@ void FixSMC::post_integrate() {
       memory -> destroy(xyzhing);
       memory -> create(xyzhing, 3, "FixSMC::post_integrate()");
 
-      // Computing the distance between the new beads in a parallel way
+      // Computing the distance between the proposed beads' ends using xyz values from different processors
       if (((mannew = idnewan) >= 0) && (idnewan < (atom -> nlocal))) {
         domain -> unmap(atom -> x[mannew], atom -> image[mannew], unwrap);
         xyzanchtemp[0] += unwrap[0];
@@ -504,10 +486,9 @@ void FixSMC::post_integrate() {
         dist += (xyzanch[k] - xyzhing[k]) * (xyzanch[k] - xyzhing[k]);
       }
 
-      // if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Number of counts is " + std::to_string(anchcounts[0]) + " Anchor " + std::to_string(hingcounts[0]) + " Hinge " + "\n");
-      // if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Proposed distance is " + std::to_string(sqrt(dist)) + "\n");
+      if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Next ends distance is " + std::to_string(sqrt(dist)) + "\n");
 
-      // Check if the distance is small enough to run the jump
+      // Check if the distance is small enough to accept the movement
       if (!(dist > cutoff * cutoff || (anchcounts[0] == 0) || (hingcounts[0] == 0))) {
         
         if ((temphdir!=0) || (tempadir!=0)){
@@ -538,111 +519,19 @@ void FixSMC::post_integrate() {
 
 }
 
-/* ----------------------------------------------------------------------
-   memory usage of hing and anch arrays
-------------------------------------------------------------------------- */
-
-double FixSMC::memory_usage() {
-  double bytes = 2 * smcnum * sizeof(long) + atom->natoms * sizeof(long);
-  return bytes;
-}
-
-/*---------------------------------------------------------------------*/
-/* Needed to write a restart file that can continue with the simulation*/
-/*---------------------------------------------------------------------*/
-void FixSMC::write_restart(FILE * fp) {
-  // if ((debug)) utils::logmesg(lmp, "Writing restart for fix_smc \n");
-
-  int rn = 0;
-  long rlist[3 + 2 * smcnum];
-
-  rlist[rn++] = static_cast < long > (next_reneighbor);
-  rlist[rn++] = static_cast < long > (update -> ntimestep);
-
-  rlist[rn++] = static_cast < long > (smcnum);
-
-  // Saving SMCs positions
-  for (int i = 0; i < smcnum; i++) {
-    rlist[rn++] = anch[i];
-    rlist[rn++] = hing[i];
-  }
-
-  if (comm -> me == 0) {
-    int size = rn * sizeof(long);
-    fwrite( & size, sizeof(int), 1, fp);
-    fwrite(rlist, sizeof(long), rn, fp);
-  }
-
-  if ((debug)) utils::logmesg(lmp, "End of writing restart for fix_smc \n");
-
-}
-
-/* ----------------------------------------------------------------------
-   use state info from restart file to restart the Fix
-------------------------------------------------------------------------- */
-void FixSMC::restart(char * buf) {
-  if ((debug)) utils::logmesg(lmp, "Reading restart for fix_smc \n");
-
-  int rn = 0;
-  long * rlist = (long * ) buf;
-
-  next_reneighbor = static_cast < bigint > (rlist[rn++]);
-
-  bigint ntimestep_restart = static_cast < bigint > (rlist[rn++]);
-  if (ntimestep_restart != update -> ntimestep)
-    error -> all(FLERR, "Must not reset timestep when restarting fix smc");
-
-  int smcnum_rest = rlist[rn++];
-  if (smcnum_rest != smcnum)
-    error -> all(FLERR, "Invalid restart, number of smcs has changed!");
-
-  // Loading SMCs positions
-  for (int j = 0; j < smcnum; j++) {
-    anch[j] = static_cast < long > (rlist[rn++]);
-    hing[j] = static_cast < long > (rlist[rn++]);
-  }
-
-  if ((debug)) utils::logmesg(lmp, "End of reading restart for fix_smc \n");
-
-}
-
-/*
-Returns number of smcs
-*/
-double FixSMC::compute_scalar() {
-  return smcnum;
-}
-
-/*
-Returns position of i smc hinge or anchor depending on the flag 
-*/
-double FixSMC::compute_array(int i, int flag) {
-  int rflag;
-  if (hdir != 0) {
-    rflag = hdir / abs(hdir);
-  } else {
-    rflag = -adir / abs(adir);
-  }
-
-  rflag = (1 + rflag / (abs(rflag))) / 2;
-
-  if (flag) {
-    if (rflag) return hing[i];
-    else return anch[i];
-  } else {
-    if (rflag) return anch[i];
-    else return hing[i];
-  }
-}
+/*----------------------------------------------------*/
+/*Check if it is possible to place an anchor on bead i*/
+/*----------------------------------------------------*/
 bool FixSMC::check_avl(long i){
   long tmphing;
   long mdbead;
   bool flag = 0;
 
-  // Instantiate the bead according to the direction
+  // Define hinge position according to movement direction
   if (hdir != 0) tmphing = i + 2 * hdir / abs(hdir);
   else tmphing = i - 2 * adir / abs(adir);
 
+  // Define SMC's center
   mdbead = (i + tmphing)/2;
 
   // Check if the smc is wrongly positioned (border conditions)
@@ -662,42 +551,33 @@ bool FixSMC::check_avl(long i){
 
   if (flag) return 0;
 
-  if (connFix) {
-    // Check for conflicts with connected fix
-    for (int k = 0; k < connFix -> compute_scalar(); k++) {
-      if (connFix -> compute_array(k, 1) > atom -> natoms) continue;
-      if ((i >= connFix -> compute_array(k, 0)) && (i < (connFix -> compute_array(k, 1)))) {
-        flag = 1;
-        break;
-      }
-      if ((tmphing >= connFix -> compute_array(k, 0)) && (tmphing < (connFix -> compute_array(k, 1)))) {
-        flag = 1;
-        break;
-      }
-    }
-  }
-
-  if (flag) return 0;
-
   return 1;
 }
 
+/*------------------------------------------------------*/
+/*Compile a list of available position for SMCs' anchors*/
+/*------------------------------------------------------*/
 void FixSMC::compile_avl_list(){
   num_avl = 0;
 
+  // Scatter availability checking among the processors
   int atoms_per_rank = atom->natoms / comm->nprocs;
 
+  // Getting the range of atoms to consider
   long min = comm->me * atoms_per_rank + 1;
   long max = comm->me * atoms_per_rank + atoms_per_rank;
 
   if (comm->me == comm->nprocs-1) max = atom->natoms;
   
+  // Getting size of array to compute
   int size = max - min + 1;
   long temp_num_avl = 0;
   long * temp_avl_list = new long[size];
 
+  // Filling the list with bead number atom->natoms + 1
   std::fill(temp_avl_list, temp_avl_list + size, atom->natoms + 1);
 
+  // Define displacements for MPI parallelisation
   int displs[comm->nprocs];
   int rcounts[comm->nprocs];
 
@@ -717,35 +597,44 @@ void FixSMC::compile_avl_list(){
     }
   }
   
+  // Gather back available positions list
   MPI_Barrier(world);
 
   MPI_Allreduce(&temp_num_avl, &num_avl, 1, MPI_LONG, MPI_SUM, world);
 
   MPI_Allgatherv(temp_avl_list, size, MPI_LONG, av_list, rcounts, displs, MPI_LONG, world);
 
+  // Sort the list to have a working availability list
   std::sort(av_list, av_list + atom->natoms);
 
   delete temp_avl_list;
 }
 
+/*-------------*/
+/*Load i-th SMC*/
+/*-------------*/
 void FixSMC::load_smc(long i) {
   compile_avl_list();
   if (comm->me==0) {
     int npol = atom->natoms / lpol;
 
+    // Distribute the SMCs in the system, placing at least one for each polymer
     if ((initmode == 1) && (i * lpol < atom -> natoms) && (update -> ntimestep  == 1)) {
       do {
         anch[i] = static_cast < int > (random_equal -> uniform() * lpol + i * lpol);
       } while (! check_avl(anch[i]));
     }
+    // Distribute uniformly SMCs among the polymers
     else if ((initmode == 2) && (update -> ntimestep  == 1)) {
       do {
         anch[i] = static_cast < int > (random_equal -> uniform() * lpol + (i%npol) * lpol);
       } while (! check_avl(anch[i]));
     }
+    // Distribute randomly extruders among polymers
     else{
       anch[i] = av_list[static_cast < int > (random_equal -> uniform() * num_avl)];
     }  
+
     if (num_avl == 0) error -> all(FLERR, "Not enough space for the smcs");
 
     if (hdir != 0) hing[i] = anch[i] + 2 * hdir / abs(hdir);
@@ -773,7 +662,7 @@ void FixSMC::place_smc(long a, long h, bool newsmc) {
 
   // Create new bond between new hinge and anchor if not already present
   if (((mhi = idhi) >= 0) && (idhi < atom -> nlocal)) {
-    // Changing type
+    // Changing type of new hing
     atom -> type[mhi] = smctype;
 
     bool create = 1;
@@ -835,5 +724,103 @@ void FixSMC::remove_smc(long a, long h) {
         break;
       }
     }
+  }
+}
+
+/*------------------------------------*/
+/*Memory usage of hing and anch arrays*/
+/*------------------------------------*/
+double FixSMC::memory_usage() {
+  double bytes = 2 * smcnum * sizeof(long) + atom->natoms * sizeof(long);
+  return bytes;
+}
+
+/*-------------------------------------------*/
+/*Add restart information in the restart file*/
+/*-------------------------------------------*/
+void FixSMC::write_restart(FILE * fp) {
+  if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Writing restart for fix_smc \n");
+
+  int rn = 0;
+  long rlist[3 + 2 * smcnum];
+
+  rlist[rn++] = static_cast < long > (next_reneighbor);
+  rlist[rn++] = static_cast < long > (update -> ntimestep);
+
+  rlist[rn++] = static_cast < long > (smcnum);
+
+  // Saving SMCs' ends positions
+  for (int i = 0; i < smcnum; i++) {
+    rlist[rn++] = anch[i];
+    rlist[rn++] = hing[i];
+  }
+
+  if (comm -> me == 0) {
+    int size = rn * sizeof(long);
+    fwrite( & size, sizeof(int), 1, fp);
+    fwrite(rlist, sizeof(long), rn, fp);
+  }
+
+  if ((debug)) utils::logmesg(lmp, "End of writing restart for fix_smc \n");
+
+}
+
+/*---------------------------------------------------*/
+/*Use state info from restart file to restart the Fix*/
+/*---------------------------------------------------*/
+void FixSMC::restart(char * buf) {
+  if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Reading restart for fix_smc \n");
+
+  int rn = 0;
+  long * rlist = (long * ) buf;
+
+  next_reneighbor = static_cast < bigint > (rlist[rn++]);
+
+  bigint ntimestep_restart = static_cast < bigint > (rlist[rn++]);
+  if (ntimestep_restart != update -> ntimestep)
+    error -> all(FLERR, "Must not reset timestep when restarting fix smc");
+
+  int smcnum_rest = rlist[rn++];
+  if (smcnum_rest != smcnum)
+    error -> all(FLERR, "Invalid restart, number of SMCs has changed!");
+
+  // Loading SMCs' ends positions
+  for (int j = 0; j < smcnum; j++) {
+    anch[j] = static_cast < long > (rlist[rn++]);
+    hing[j] = static_cast < long > (rlist[rn++]);
+  }
+
+  if ((comm->me==0) && (debug)) utils::logmesg(lmp, "End of reading restart for fix_smc \n");
+
+}
+
+/*---------------------*/
+/*Return number of SMCs*/
+/*---------------------*/
+double FixSMC::compute_scalar() {
+  return smcnum;
+}
+
+/*--------------------------------------------------------------------------------*/
+/*Return left end position of i-th SMCs' left end if flag=0 or right end if flag=1*/
+/*--------------------------------------------------------------------------------*/
+double FixSMC::compute_array(int i, int flag) {
+  int rflag;
+
+  // Check which is the left end
+  if (hdir != 0) {
+    rflag = hdir / abs(hdir);
+  } else {
+    rflag = -adir / abs(adir);
+  }
+
+  rflag = (1 + rflag / (abs(rflag))) / 2;
+
+  if (flag) {
+    if (rflag) return hing[i];
+    else return anch[i];
+  } else {
+    if (rflag) return anch[i];
+    else return hing[i];
   }
 }
