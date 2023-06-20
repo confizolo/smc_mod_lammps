@@ -6,7 +6,7 @@ The following repository contains code related to the development of a Fix for L
 The goal of this code is to introduce an easy and parallelised way to deploy and run loop extrusion on solution of polymers. To do so we developed a custom fix for LAMMPS that allows loop extrusion through moving bonds (see details [here](paper)).
 
 # Repository structure 
-- datafiles: contains sample datafiles to run tests
+- initfiles: contains sample datafiles to run tests
 - exec: contains sample LAMMPS and bash scripts
 - src: contain source files for fix_smc code
 
