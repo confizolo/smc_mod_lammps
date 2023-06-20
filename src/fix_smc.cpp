@@ -82,7 +82,7 @@ const char cite_fix_smc[] =
 
 FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
   Fix(lmp, narg, arg),
-  anch(nullptr), hing(nullptr), smctype(0), smcbtype(0), smcnum(0), debug(1) {
+  anch(nullptr), hing(nullptr), smctype(0), smcbtype(0), smcnum(0), debug(0) {
     if (lmp -> citeme) lmp -> citeme -> add(cite_fix_smc);
     // Number of arguments for the fix. The first three arguments are parsed by Fix base class constructor.
     // The rest are specific to this fix. 11 are mandatory
@@ -336,16 +336,16 @@ void FixSMC::post_integrate() {
 
     // for (int i = 0; i < smcnum; i++)
     // { 
-    //   if ((debug)) utils::logmesg(lmp, "Anchors are" + std::to_string(anch[i]) + " " + std::to_string(hing[i]) + "\n");
+      // if ((debug)) utils::logmesg(lmp, "Anchors are" + std::to_string(anch[i]) + " " + std::to_string(hing[i]) + "\n");
     // }
 
     double rand;
 
     for (int i = 0; i < smcnum; i++) {
-      for (int l_sample = 0; l_sample < abs(maxadir); l_sample ++){
 
-      // roll new movement step size (left or right)
-      // but.... should adir and hdir be independent? they should right
+      // if ((debug)) utils::logmesg(lmp, "hi\n");
+      for (int l_sample = 0; l_sample < std::max(abs(maxadir), abs(maxhdir)); l_sample ++){
+
 
       if (comm -> me == 0) jrand = random_equal -> uniform();
       MPI_Bcast( & jrand, 1, MPI_DOUBLE, 0, world);
@@ -353,11 +353,32 @@ void FixSMC::post_integrate() {
       if (comm -> me == 0) krand = random_equal -> uniform();
       MPI_Bcast( & krand, 1, MPI_DOUBLE, 0, world);
 
-      adir = round(maxadir * jrand);
-      hdir = round(maxhdir * krand);
+      // fudge by + 1 is required to not have a divide by zero later on...
+
+      if (maxadir == 0){
+        adir = 0;
+      }
+      else if(maxadir > 0){
+        adir = round(maxadir * jrand) + 1;
+      }
+      else if (maxadir < 0){
+        adir = round(maxadir * jrand) - 1;
+      }
+
+      if (maxhdir == 0){
+        hdir = 0;
+      }
+      else if (maxhdir > 0) {
+        hdir = round(maxhdir * krand) + 1;
+      }
+      else if (maxhdir < 0) {
+        hdir = round(maxhdir * krand) - 1;
+      }
 
       tempadir = adir;
       temphdir = hdir;
+
+      if ((debug)) utils::logmesg(lmp, "lsample {} | adir: {}, hdir: {}\n",l_sample, adir, hdir);
 
       // Draw two random numbers for the unloading/loading
       double lrand;
@@ -396,11 +417,10 @@ void FixSMC::post_integrate() {
       }
 
       // Temporary direction if the smc is going towards the polymer end or another smc bead
-      tempadir = adir;
-      temphdir = hdir;
 
       // Check if we are going to the polymer border on one side or on the other
 
+      //funky divide by zero operation is possible here:
       if (hdir / abs(hdir) < 0) {
         if ((hing[i] + hdir) % lpol == 0){
           if (!ring) temphdir = 0;
