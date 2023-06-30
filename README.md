@@ -33,6 +33,7 @@ fix "fixname" "considered beads" smc "par1" "par2" "par3" "par4" "par5" "par6" "
     3.  "full-distributed": distributes evenly SMCs over the polymers
 14. kon: probability to load a free extruder every nevery step
 15. koff: probability to unload an extruder every nevery step
+16. blockbeads: type of beads that the extruder cannot grab, can be listed as an arbitrary long list (e.g.: 2 3 4 ...)
 
 # How to run Fix SMC Dump
 An additional fix was developed to allow dumping of LEF positions (two ends). It can be exploited using the following command:

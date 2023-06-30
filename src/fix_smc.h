@@ -51,7 +51,8 @@ namespace LAMMPS_NS
    private:
       long *anch, *hing, *av_list;
       long num_avl;
-      int seed, smctype, smcbtype, smcbitype, lpol, adir, hdir, smcnum, initmode, ring;
+      int seed, smctype, smcbtype, smcbitype, lpol, maxadir, maxhdir, adir, hdir, smcnum, initmode, ring, nblockt, fixed_hinge_position;
+      int *blockt;
       double prob, cutoff, kon, koff;
       double *xyzanch, *xyzhing;
       bool debug;

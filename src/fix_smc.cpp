@@ -82,7 +82,7 @@ const char cite_fix_smc[] =
 
 FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
   Fix(lmp, narg, arg),
-  anch(nullptr), hing(nullptr), debug(0) {
+  anch(nullptr), hing(nullptr), smctype(0), smcbtype(0), smcnum(0), debug(0) {
     if (lmp -> citeme) lmp -> citeme -> add(cite_fix_smc);
     // Number of arguments for the fix. The first three arguments are parsed by Fix base class constructor.
     // The rest are specific to this fix. 15 are mandatory
@@ -104,9 +104,11 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     //    3.  "full-distributed": distributes evenly SMCs over the polymers
     // 17. kon: probability to load a free extruder every nevery step
     // 18. koff: probability to unload an extruder every nevery step
+    // 18.5 anchor position
+    // 19. blockbeads: type of beads that the extruder cannot grab, can be listed as an arbitrary long list (e.g.: 2 3 4 ...)
 
     // Check on the number of arguments given to the fix
-    if (narg != 18) error -> all(FLERR, "Illegal fix smc command");
+    if (narg < 18) error -> all(FLERR, "Illegal fix smc command");
 
     nevery = utils::inumeric(FLERR, arg[3], false, lmp);
     if (nevery <= 0) error -> all(FLERR, "Illegal fix smc command");
@@ -140,11 +142,11 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     }
 
     // Define movement of SMCs' anchor
-    adir = utils::inumeric(FLERR, arg[8], false, lmp);
+    maxadir = utils::inumeric(FLERR, arg[8], false, lmp);
 
     // Define movement of SMCs' hinge
-    hdir = utils::inumeric(FLERR, arg[9], false, lmp);
-    if (hdir * adir >= 0) error -> all(FLERR, "Illegal fix smc command, hinge and must not have same direction");
+    maxhdir = utils::inumeric(FLERR, arg[9], false, lmp);
+    //if (hdir * adir >= 0) error -> all(FLERR, "Illegal fix smc command, hinge and must not have same direction");
 
     // Define number of SMCs to deploy
     smcnum = utils::inumeric(FLERR, arg[10], false, lmp);
@@ -176,6 +178,8 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
       initmode = 1;
     } else if (strcmp(arg[15], "full-distributed") == 0) {
       initmode = 2;
+    } else if (strcmp(arg[15], "fixed") == 0) {
+      initmode = 3;
     } else {
       error -> all(FLERR, "Illegal fix smc command, initmode not present");
     }
@@ -189,6 +193,19 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     koff = utils::numeric(FLERR, arg[17], false, lmp);
     if ((koff < 0) || (koff>1))
       error -> all(FLERR, "Illegal fix smc command, koff is out of the interval [0,1]");
+
+    // fixed_hinge_position = 200;
+    fixed_hinge_position = utils::inumeric(FLERR, arg[18], false, lmp);
+
+    nblockt = narg - 19;
+
+    blockt = new int[nblockt];
+
+    for (int i = 19; i < narg; i++) {
+      blockt[i-19] = utils::inumeric(FLERR, arg[i], false, lmp);;
+    }
+    if ((debug)) utils::logmesg(lmp, "atom type --> {}, nblockt = {}", blockt[0], nblockt);
+
 
     xyzanch = nullptr;
     xyzhing = nullptr;
@@ -226,6 +243,7 @@ FixSMC::~FixSMC() {
   delete random_equal;
   delete anch;
   delete hing;
+  delete blockt;
 
   memory -> destroy(xyzanch);
   memory -> destroy(xyzhing);
@@ -317,13 +335,55 @@ void FixSMC::post_integrate() {
     int idnewan;
     int idan;
 
-    int tempadir = adir;
-    int temphdir = hdir;
+    double jrand;
+    double krand;
+
     bool flag = 0;
+    bool l_flag = 0;
+
+    int tempadir = 0;
+    int temphdir = 0;
 
     double rand;
 
     for (int i = 0; i < smcnum; i++) {
+
+      // if ((debug)) utils::logmesg(lmp, "hi\n");
+      for (int l_sample = 0; l_sample < std::max(abs(maxadir), abs(maxhdir)); l_sample ++){
+
+
+      if (comm -> me == 0) jrand = random_equal -> uniform();
+      MPI_Bcast( & jrand, 1, MPI_DOUBLE, 0, world);
+
+      if (comm -> me == 0) krand = random_equal -> uniform();
+      MPI_Bcast( & krand, 1, MPI_DOUBLE, 0, world);
+
+      // fudge by + 1 is required to not have a divide by zero later on...
+
+      if (maxadir == 0){
+        adir = 0;
+      }
+      else if(maxadir > 0){
+        adir = round(maxadir * jrand) + 1;
+      }
+      else if (maxadir < 0){
+        adir = round(maxadir * jrand) - 1;
+      }
+
+      if (maxhdir == 0){
+        hdir = 0;
+      }
+      else if (maxhdir > 0) {
+        hdir = round(maxhdir * krand) + 1;
+      }
+      else if (maxhdir < 0) {
+        hdir = round(maxhdir * krand) - 1;
+      }
+
+      tempadir = adir;
+      temphdir = hdir;
+
+      if ((debug)) utils::logmesg(lmp, "lsample {} | adir: {}, hdir: {}\n",l_sample, adir, hdir);
 
       // Draw two random numbers for the unloading/loading
       double lrand;
@@ -349,21 +409,21 @@ void FixSMC::post_integrate() {
 
       MPI_Barrier(world);
 
-      // Check if SMC is loaded
-      if ((anch[i]<0) || (hing[i]<0)) continue;
+      // Check if SMC are loaded
+      // change to `continue` if removing the l_sample loop
+      if ((anch[i]<0) || (hing[i]<0)) break;
 
       // Draw a random number for the jump attempt
       if (comm -> me == 0) rand = random_equal -> uniform();
       MPI_Bcast( & rand, 1, MPI_DOUBLE, 0, world);
 
       // First accept the move with a certain probability prob
+      // change to `continue` if removing the l_sample loop
       if (rand > prob) {
-        continue;
+        break;
       }
 
       // Temporary direction if the smc is going towards the polymer end or another smc bead
-      tempadir = adir;
-      temphdir = hdir;
 
       // Check if the SMCs' ends are moving over the polymer ends
       if (hdir / abs(hdir) < 0) {
@@ -408,19 +468,26 @@ void FixSMC::post_integrate() {
         else if (((hing[i] + temphdir) == hing[j]) || ((hing[i] + temphdir) == anch[j])) temphdir = 0;
       }
 
+      // change to `continue` if removing the l_sample loop
       if (flag) {
-        continue;
+        break;
       }
-
-      if ((comm->me==0) && (debug)) utils::logmesg(lmp, "SMC {} Current anchor {}, current hinge {}; next anchor {}, next hinge {} \n", i,anch[i],hing[i],anch[i]+tempadir,hing[i]+temphdir);
+      
+      if ((debug)) utils::logmesg(lmp, "SMC {} Current anchor {}, current hinge {}; next anchor {}, next hinge {} \n", i,anch[i],hing[i],anch[i]+tempadir,hing[i]+temphdir);
 
       // Finding local identifier of the atom
-      idnewhi = atom -> map(hing[i] + temphdir);
-      idhi = atom -> map(hing[i]);
-      idnewan = atom -> map(anch[i] + tempadir);
       idan = atom -> map(anch[i]);
+      idhi = atom -> map(hing[i]);
 
-      
+      for (int j = 0; j < nblockt ; j++)
+      {
+          if ((((idnewan) >= 0) && (idnewan < atom -> nlocal)) && atom -> type[idnewan] == blockt[j]) {tempadir = 0; MPI_Bcast(&tempadir,1,MPI_INT,comm->me,world);}
+          if ((((idnewhi) >= 0) && (idnewhi < atom -> nlocal)) && atom -> type[idnewhi] == blockt[j]) {temphdir = 0; MPI_Bcast(&temphdir,1,MPI_INT,comm->me,world);}
+      }
+
+      MPI_Barrier(world);
+      if ((tempadir == 0) && (temphdir == 0)) continue;
+
       memory -> destroy(xyzanchtemp);
       memory -> create(xyzanchtemp, 3, "FixSMC::post_integrate()");
       memory -> destroy(xyzhingtemp);
@@ -485,23 +552,35 @@ void FixSMC::post_integrate() {
         dist += (xyzanch[k] - xyzhing[k]) * (xyzanch[k] - xyzhing[k]);
       }
 
-      if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Next ends distance is " + std::to_string(sqrt(dist)) + "\n");
+      if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Number of counts is " + std::to_string(anchcounts[0]) + " Anchor " + std::to_string(hingcounts[0]) + " Hinge " + "\n");
+      if ((comm->me==0) && (debug)) utils::logmesg(lmp, "Proposed distance is " + std::to_string(sqrt(dist)) + "\n");
 
       // Check if the distance is small enough to accept the movement
       if (!(dist > cutoff * cutoff || (anchcounts[0] == 0) || (hingcounts[0] == 0))) {
         
         if ((temphdir!=0) || (tempadir!=0)){
-          remove_smc(anch[i], hing[i]);
-          place_smc(anch[i] + tempadir, hing[i] + temphdir, false);
+          l_flag = 1;
+          break;
         }
-
-        anch[i] += tempadir;
-        hing[i] += temphdir;
-
       }
       // Barrier to check that each processor has defined correctly each smc
       MPI_Barrier(world);
-    }
+
+    } 
+    // loop over samples
+    if (l_flag){
+      remove_smc(anch[i], hing[i]);
+      place_smc(anch[i] + tempadir, hing[i] + temphdir, false);
+      anch[i] += tempadir;
+      hing[i] += temphdir;
+
+    } 
+
+    // Barrier to check that each processor has defined correctly each smc
+    MPI_Barrier(world);
+
+  } // loop over smc
+
 
     memory -> destroy(xyzanch);
     memory -> destroy(xyzhing);
@@ -526,10 +605,19 @@ bool FixSMC::check_avl(long i){
   long mdbead;
   bool flag = 0;
 
+  int mnew;
+  int mannew;
+
+  int idnewhi;
+  int idnewan;
+
   // Define hinge position according to movement direction
   if (hdir != 0) tmphing = i + 2 * hdir / abs(hdir);
   else tmphing = i - 2 * adir / abs(adir);
 
+  idnewhi = atom -> map(tmphing);
+  idnewan = atom -> map(tmphing);
+  
   // Define SMC's center
   mdbead = (i + tmphing)/2;
 
@@ -547,6 +635,20 @@ bool FixSMC::check_avl(long i){
       break;
     }
   }
+
+  if (flag) return 0;
+
+  for (int j = 0; j < nblockt ; j++)
+    {
+        if ((((mannew = idnewan) >= 0) && (idnewan < atom -> nlocal)) && atom -> type[mannew] == blockt[j]) {
+          flag=1; 
+          MPI_Bcast(&flag,1,MPI_INT,comm->me,world); 
+          break;
+        }
+        if ((((mnew = idnewhi) >= 0) && (idnewhi < atom -> nlocal)) && atom -> type[mnew] == blockt[j]) {flag=1; MPI_Bcast(&flag,1,MPI_INT,comm->me,world); break;}
+    }
+
+  MPI_Barrier(world);
 
   if (flag) return 0;
 
@@ -614,31 +716,38 @@ void FixSMC::compile_avl_list(){
 /*-------------*/
 void FixSMC::load_smc(long i) {
   compile_avl_list();
-  if (comm->me==0) {
-    int npol = atom->natoms / lpol;
+  int npol = atom->natoms / lpol;
 
-    // Distribute the SMCs in the system, placing at least one for each polymer
-    if ((initmode == 1) && (i * lpol < atom -> natoms) && (update -> ntimestep  == 1)) {
-      do {
-        anch[i] = static_cast < int > (random_equal -> uniform() * lpol + i * lpol);
-      } while (! check_avl(anch[i]));
-    }
-    // Distribute uniformly SMCs among the polymers
-    else if ((initmode == 2) && (update -> ntimestep  == 1)) {
-      do {
-        anch[i] = static_cast < int > (random_equal -> uniform() * lpol + (i%npol) * lpol);
-      } while (! check_avl(anch[i]));
-    }
-    // Distribute randomly extruders among polymers
-    else{
-      anch[i] = av_list[static_cast < int > (random_equal -> uniform() * num_avl)];
-    }  
-
-    if (num_avl == 0) error -> all(FLERR, "Not enough space for the smcs");
-
-    if (hdir != 0) hing[i] = anch[i] + 2 * hdir / abs(hdir);
-    else hing[i] = anch[i] - 2 * adir / abs(adir);
+  // Distribute the SMCs in the system, placing at least one for each polymer
+  if ((initmode == 1) && (i * lpol < atom -> natoms) && (update -> ntimestep  == 1)) {
+    do {
+      if (comm->me == 0) anch[i] = static_cast < int > (random_equal -> uniform() * lpol + i * lpol);
+      MPI_Bcast(anch, smcnum, MPI_LONG, 0, world);
+      MPI_Barrier(world);
+    } while (! check_avl(anch[i]));
   }
+  // Distribute uniformly SMCs among the polymers
+  else if ((initmode == 2) && (update -> ntimestep  == 1)) {
+    do {
+      if (comm->me == 0) anch[i] = static_cast < int > (random_equal -> uniform() * lpol + (i%npol) * lpol);
+      MPI_Bcast(anch, smcnum, MPI_LONG, 0, world);
+      MPI_Barrier(world);
+    } while (! check_avl(anch[i]));
+  }
+  // Distribute randomly extruders among polymers
+  else if ((initmode == 3) && (update -> ntimestep  == 1)) {
+    anch[i] = fixed_hinge_position; // this is so manual omg
+  }
+
+  else{
+    anch[i] = av_list[static_cast < int > (random_equal -> uniform() * num_avl)];
+  }  
+
+  if (num_avl == 0) error -> all(FLERR, "Not enough space for the smcs");
+
+  if (hdir != 0) hing[i] = anch[i] + 2 * hdir / abs(hdir);
+  else hing[i] = anch[i] - 2 * adir / abs(adir);
+  
 
   MPI_Barrier(world);
   // Cast the chosen position to each processor
