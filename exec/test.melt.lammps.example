@@ -49,24 +49,23 @@ boundary   p p p
 neighbor 1.2 bin
 neigh_modify every 1 delay 1 check yes
 
-read_data ../data/melt.dat extra/bond/per/atom 2
+read_data ../initfiles/melt.dat extra/bond/per/atom 2
 
 ######################################
 ####	PAIRS -- REPULSIVE 	#######
 ######################################
-pair_style  hybrid lj/cut 1.12246 soft 1.12246
+pair_style lj/cut 1.12246
 pair_modify     shift yes
-pair_coeff      * * lj/cut 1.0 1.0 1.12246
+pair_coeff      * * 1.0 1.0 1.12246
 
 ####################################
 ####    FENE BONDS           #######
 ####################################
 bond_style hybrid fene harmonic
 special_bonds fene
-bond_coeff   1 fene  30.0   1.6  1.0  1.0
+bond_coeff   1 fene  30.0   1.5  1.0  1.0
 bond_coeff   2 harmonic 100 1.1
-bond_coeff   3 fene  20.0   1.7  1.0  1.0
-
+bond_coeff   3 fene  10.0   1.7  1.0  1.0
 
 ####################################
 ####	ANGLE	             #######

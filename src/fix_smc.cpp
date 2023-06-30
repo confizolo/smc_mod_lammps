@@ -539,7 +539,7 @@ bool FixSMC::check_avl(long i){
   }
 
   flag = 0;
-  // Check if we are superimposing other beads
+  // Check if we are superimposing other SMCs' beads
   for (int j = 0; j < smcnum; j++) {
     if ((anch[j]<0) || (hing[j]<0)) continue;
     if (((i == anch[j]) || (tmphing == hing[j])) || ((i == hing[j]) || (tmphing == anch[j])) || ((i + 1) == anch[j]) || ((i - 1) == anch[j]) || ((tmphing + 1) == anch[j]) || ((tmphing - 1) == anch[j]) || ((i + 1) == hing[j]) || ((i - 1) == hing[j]) || ((tmphing + 1) == hing[j]) || ((tmphing - 1) == hing[j])) {

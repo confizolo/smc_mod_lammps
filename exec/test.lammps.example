@@ -46,23 +46,23 @@ boundary   p p p
 neighbor 1.2 bin
 neigh_modify every 1 delay 1 check yes
 
-read_data ../data/single.dat extra/bond/per/atom 2
+read_data ../initfiles/single.dat extra/bond/per/atom 2
 
 ######################################
 ####	PAIRS -- REPULSIVE 	#######
 ######################################
-pair_style  hybrid lj/cut 1.12246 soft 1.12246
+pair_style lj/cut 1.12246
 pair_modify     shift yes
-pair_coeff      * * lj/cut 1.0 1.0 1.12246
+pair_coeff      * * 1.0 1.0 1.12246
 
 ####################################
 ####    FENE BONDS           #######
 ####################################
 bond_style hybrid fene harmonic
 special_bonds fene
-bond_coeff   1 fene  30.0   1.6  1.0  1.0
+bond_coeff   1 fene  30.0   1.5  1.0  1.0
 bond_coeff   2 harmonic 100 1.1
-bond_coeff   3 fene  20.0   1.7  1.0  1.0
+bond_coeff   3 fene  10.0   1.7  1.0  1.0
 
 
 ####################################
@@ -86,7 +86,7 @@ variable prob equal 1
 variable lpol equal 1000
 variable cutoff equal 1.5
 variable rate equal 10000
-variable nsmc equal 5000
+variable nsmc equal 200
 
 ####################################
 ####	FIXES	             #######
@@ -94,7 +94,7 @@ variable nsmc equal 5000
 timestep 0.01
 fix 1 all nve  
 fix 2 all langevin   ${Temp} ${Temp} ${tdamp}  ${seedthermo}
-fix smcrun all smc ${rate} 213312 ${prob} ${lpol} linear -1 1 ${nsmc} 2 2 2 ${cutoff} distributed 1 0.00001
+fix smcrun all smc ${rate} 213312 ${prob} ${lpol} linear -1 1 ${nsmc} 2 2 2 ${cutoff} full-distributed 1 0.00001
 fix smcdump all dumpsmc 1000 ${nsmc} smcpos smcrun
 
 #Useful commands when running in parallel

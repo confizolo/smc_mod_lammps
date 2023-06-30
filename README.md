@@ -42,3 +42,8 @@ fix "fixname" "considered beads" dumpsmc "par1" "par2" "par3" "par4"
 2. nsmc: number of deployed SMCs
 3. dump_filename: name of file to use for dumping
 4. fixname: name of the fix smc deployed in simulation
+
+# Warnings
+
+- At the current status SMCs can only be deployed all together at timestep 1 of simulation
+- Simulations containing beads not belonging to polymers to extrude CAN'T be used given the depolyment algorithm for SMCs
