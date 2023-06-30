@@ -34,4 +34,11 @@ fix "fixname" "considered beads" smc "par1" "par2" "par3" "par4" "par5" "par6" "
 14. kon: probability to load a free extruder every nevery step
 15. koff: probability to unload an extruder every nevery step
 
+# How to run Fix SMC Dump
+An additional fix was developed to allow dumping of LEF positions (two ends). It can be exploited using the following command:
 
+fix "fixname" "considered beads" dumpsmc "par1" "par2" "par3" "par4" 
+1. nevery: Attempt the jump every nevery iteration
+2. nsmc: number of deployed SMCs
+3. dump_filename: name of file to use for dumping
+4. fixname: name of the fix smc deployed in simulation

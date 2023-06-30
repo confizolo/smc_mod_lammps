@@ -76,13 +76,19 @@ using namespace FixConst;
 
 static
 const char cite_fix_dumpsmc[] =
-  "fix smc command:\n\n";
+  "fix dump smc command:\n\n";
 
 /* ---------------------------------------------------------------------- */
 
 FixDUMPSMC::FixDUMPSMC(LAMMPS * lmp, int narg, char ** arg):
   Fix(lmp, narg, arg), connFix(nullptr){
     if (lmp -> citeme) lmp -> citeme -> add(cite_fix_dumpsmc);
+    // Number of arguments for the fix. The first three arguments are parsed by Fix base class constructor.
+    // The rest are specific to this fix. 7 are mandatory
+    // 4. nevery: Attempt the jump every nevery iteration
+    // 5. nsmc: number of deployed SMCs
+    // 6. dump_filename: name of file to use for dumping
+    // 7. fixname: name of the fix smc deployed in simulation
  
     if ((narg != 7)) error -> all(FLERR, "Illegal fix dumpsmc command");
 
@@ -95,12 +101,13 @@ FixDUMPSMC::FixDUMPSMC(LAMMPS * lmp, int narg, char ** arg):
     // Flag to activate dump in restart file of fix smc structure
     restart_global = 1;
 
+    // Storing dump file name
     dumpFilestr = arg[5];
 
+    // Storing Fix Name to retrieve position from 
     connFixName = new char[static_cast < int > (sizeof(arg[6]) / sizeof(char))];
     std::copy(arg[6], arg[6] + static_cast < int > (sizeof(arg[6]) / sizeof(char)), connFixName);
     
-
   }
 
 /* ---------------------------------------------------------------------- */
@@ -125,23 +132,26 @@ void FixDUMPSMC::init() {
   if (!connFix) error -> all(FLERR, "Illegal ausiliary Fix");
 }
 
-/* ----------------------------------------------------------------------
-
-------------------------------------------------------------------------- */
-
+/* -------------------------------------------*/
+/*Main dump code to run after integration*/
+/*--------------------------------------------*/
 void FixDUMPSMC::post_integrate() {
+
+  // Opening the dump file on first iteration
   if (update -> ntimestep == 1){
     dfile.open(dumpFilestr + ".txt", std::fstream::trunc | std::fstream::out);
     dfile.close();
   }
   if (update -> ntimestep % nevery) return;
   
+  // Writing dump information on selected file
   else{
     
     if (comm->me==0){      
       dfile.open(dumpFilestr + ".txt", std::ios_base::app);
       for (int i = 0; i < nsmc; i++)
         {
+          // Writing on file timestep, number of LEF, left end position and right end position
           dfile << update -> ntimestep << " " << i+1 << " " <<connFix->compute_array(i,0) << " " << connFix->compute_array(i,1) << std::endl;
         }
       dfile.close();
@@ -158,12 +168,10 @@ double FixDUMPSMC::memory_usage() {
   return bytes;
 }
 
-/*---------------------------------------------------------------------*/
-/* Needed to write a restart file that can continue with the simulation*/
-/*---------------------------------------------------------------------*/
+/*-------------------------------------------*/
+/*Add restart information in the restart file*/
+/*-------------------------------------------*/
 void FixDUMPSMC::write_restart(FILE * fp) {
-  // if ((debug)) utils::logmesg(lmp, "Writing restart for fix_smc \n");
-
   int rn = 0;
   long rlist[1];
 
@@ -177,9 +185,9 @@ void FixDUMPSMC::write_restart(FILE * fp) {
 
 }
 
-/* ----------------------------------------------------------------------
-   use state info from restart file to restart the Fix
-------------------------------------------------------------------------- */
+/*---------------------------------------------------*/
+/*Use state info from restart file to restart the Fix*/
+/*---------------------------------------------------*/
 void FixDUMPSMC::restart(char * buf) {
   int rn = 0;
   long * rlist = (long * ) buf;
@@ -190,6 +198,7 @@ void FixDUMPSMC::restart(char * buf) {
 
   if (comm->me==0){ 
 
+      // Copying the old dump file to a temporary one
       ifile.open(dumpFilestr + ".txt");
       dfilerst.open(dumpFilestr + "temp" + ".txt", std::fstream::trunc | std::fstream::out);
       for (int t = 0; t < (int) ntimestep_restart/nevery; t++){
@@ -202,6 +211,7 @@ void FixDUMPSMC::restart(char * buf) {
       ifile.close();
       dfilerst.close();
 
+      // Refilling the dump file until the restart time
       ifile.open(dumpFilestr + "temp" + ".txt");
       dfile.open(dumpFilestr + ".txt", std::fstream::trunc | std::fstream::out);
       for (int t = 0; t < (int) ntimestep_restart/nevery; t++){
@@ -216,6 +226,5 @@ void FixDUMPSMC::restart(char * buf) {
       dfile.close();
 
     }
-
 
 }
