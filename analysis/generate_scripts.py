@@ -221,7 +221,8 @@ def main(do_local, do_slurm, jobname):
 			array_script_path = os.path.join(slurm_folder, jobname, f"run_{i}.sh")
 
 			with open(array_script_path, "w") as f:
-				f.write(npara[i])
+				print(run_str[i])
+				f.write(run_str[i])
 
 		slurm_path = os.path.join(slurm_folder, jobname + ".slurm")
 
