@@ -244,5 +244,7 @@ if __name__ == "__main__":
 	ap = argparse.ArgumentParser()
 	ap.add_argument("-l", "--local", action = "store_true")
 	ap.add_argument("-s", "--slurm", action = "store_true") # generate the SBATCH script
+	ap.add_argument("job_name") # generate the SBATCH script
+	args = ap.parse_args()
 
-	main()
+	main(args.local, args.slurm, args.job_name)
