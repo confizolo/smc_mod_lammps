@@ -119,7 +119,7 @@ def main(do_local, do_slurm, jobname):
 			_lp_stiff = p[1]
 			_n_stiff = p[2]
 
-			master_molecule_file = generate_stiff(_n_stiff, os.path.join(master_folder, "stiff_molecules"))
+			master_molecule_file = generate_stiff(_n_stiff, os.path.join(master_folder, "stiff_molecules"), default_paths[path_str]["molecule_file"])
 
 			lp_folder = os.path.join(master_folder, jobname, f"N{lpol}", f"lp{lp:02}", f"lp-stiff{_lp_stiff:02}", f"n-stiff{_n_stiff:d}")
 

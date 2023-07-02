@@ -1,7 +1,8 @@
 import os
 
-def generate_stiff(sl: int, molecule_folder, force = False):
-	MOLECULE_FILE = "/home/zy/Documents/tap/smc-lammps/data/In_conf.Nb1000.RW4.fixed.dat"
+def generate_stiff(sl: int, molecule_folder, molecule_file, force = False):
+	# MOLECULE_FILE = "/home/zy/Documents/tap/smc-lammps/data/In_conf.Nb1000.RW4.fixed.dat"
+	MOLECULE_FILE = molecule_file
 	NEW_ATOM = 4
 	NEW_ANGLE = 2
 	assert sl
