@@ -103,7 +103,7 @@ def main(do_local, do_slurm, jobname):
 	lp_bash_fps = [] # collect all the different bash files to execute all at once
 	run_str = ["" for _ in range(npara)]
 
-	for p in enumerate(parameter_set):
+	for p in (parameter_set):
 		lp = p[0]
 
 		if p[1] == None or p[2] == None:
