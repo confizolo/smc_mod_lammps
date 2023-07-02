@@ -1,3 +1,7 @@
 pizza/
 dumps/
 results/
+*.csv
+*.pyc
+*.dat
+*.png
