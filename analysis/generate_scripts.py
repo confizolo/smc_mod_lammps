@@ -195,8 +195,8 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16):
 					os.makedirs(rep_folder)
 
 				shutil.copy(parameter_fp, rep_folder)
-				shutil.copy(master_molecule_file, rep_folder)
-				shutil.copy(master_script, rep_folder)
+				shutil.copy(master_molecule_file, os.path.join(rep_folder, "molecule.dat"))
+				shutil.copy(master_script, os.path.join(rep_folder, "masterfile.lams"))
 
 				target_idx = rep % npara
 
