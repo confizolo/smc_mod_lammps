@@ -103,8 +103,7 @@ def main(do_local, do_slurm, jobname):
 	lp_bash_fps = [] # collect all the different bash files to execute all at once
 	run_str = ["" for _ in range(npara)]
 
-	for c, p in enumerate(parameter_set):
-		print(c)
+	for p in enumerate(parameter_set):
 		lp = p[0]
 
 		if p[1] == None or p[2] == None:
@@ -199,11 +198,10 @@ def main(do_local, do_slurm, jobname):
 				shutil.copy(master_molecule_file, rep_folder)
 				shutil.copy(master_script, rep_folder)
 
-			target_idx = c % npara
+				target_idx = rep % npara
 
-			run_str[target_idx] += "cd {}\n".format(rep_folder)
-			run_str[target_idx] += "~/lmp -in masterfile.lam < /dev/null > out \n"
-			print(run_str)
+				run_str[target_idx] += "cd {}\n".format(rep_folder)
+				run_str[target_idx] += "~/lmp -in masterfile.lam < /dev/null > out \n"
 
 
 
@@ -223,7 +221,6 @@ def main(do_local, do_slurm, jobname):
 			array_script_path = os.path.join(slurm_folder, jobname, f"run_{i}.sh")
 
 			with open(array_script_path, "w") as f:
-				print(run_str[i])
 				f.write(run_str[i])
 
 		slurm_path = os.path.join(slurm_folder, jobname + ".slurm")
