@@ -104,6 +104,7 @@ def main(do_local, do_slurm, jobname):
 	run_str = ["" for _ in range(npara)]
 
 	for c, p in enumerate(parameter_set):
+		print(c)
 		lp = p[0]
 
 		if p[1] == None or p[2] == None:
@@ -202,6 +203,7 @@ def main(do_local, do_slurm, jobname):
 
 			run_str[target_idx] += "cd {}\n".format(rep_folder)
 			run_str[target_idx] += "~/lmp -in masterfile.lam < /dev/null > out \n"
+			print(run_str)
 
 
 
