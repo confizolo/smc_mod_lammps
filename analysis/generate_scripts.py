@@ -213,6 +213,10 @@ def main(do_local, do_slurm, jobname):
 		os.chmod(bash_target, 0o755)
 
 	elif do_slurm:
+		slurm_job = os.path.join(slurm_folder, jobname)
+		if not os.path.exists(slurm_job):
+			os.makedirs(slurm_job)
+
 		for i in range(npara):
 			array_script_path = os.path.join(slurm_folder, jobname, f"run_{i}.sh")
 
