@@ -228,7 +228,8 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16):
 			f.write("#!/bin/bash\n")
 			f.write("#SBATCH --ntasks=1\n")
 			f.write("#SBATCH --cpus-per-task=1\n")
-			f.write(f"#SBATCH --array=1-{npara}\n")
+			f.write(f"#SBATCH --array=0-{npara-1}\n")
+			f.write(f"#SBATCH --job-name={jobname}\n")
 
 			f.write(f"~/slurm-wd/{jobname}/run_${{SLURM_ARRAY_TASK_ID}}.sh")
 
