@@ -7,9 +7,9 @@ import os
 from glob import glob
 import pandas as pd
 import matplotlib.pyplot as plt
+import argparse
 
-
-def parse():
+def parse(target_folders, output_folder):
 
 	DEFAULT_RATE_SMC = 100
 	DEFAULT_RUN_DURATION = 100000
@@ -19,9 +19,9 @@ def parse():
 	# future proofing for e.g. varying length and LP? 
 	# in that case, make the hierarchy the same i.e. job_name/lpX_NY/stuff_inside
 
-	target_folders = [
-		"/home/zy/Documents/tap/smc-single-polymer/stiff-14-fix-edgecase/N1000/", 
-	]
+	# target_folders = [
+	# 	"/home/zy/Documents/tap/smc-single-polymer/stiff-14-fix-edgecase/N1000/", 
+	# ]
 
 
 	df = pd.DataFrame(columns = ['persistence_length', 'replica_id', 'lpol', 'ratesmc', 'run_duration', 'time', 'smc_id', 'x1', 'x2', 'stiff_persistence_length', 'n_stiff', 'fixed_start_pos'])
@@ -60,8 +60,7 @@ def parse():
 				_df[p] = params[p]
 			df = pd.concat([df, _df], ignore_index = True)
 
-	df.to_csv("~/Documents/tap/smc-single-polymer/stiff_test-redo.csv", index = False)
-
+	df.to_csv(output_folder, index = False)
 
 def shift_start(df):
 	df = df.sort_values("time")
@@ -346,6 +345,14 @@ def analysis():
 
 
 if __name__ == "__main__":
-	parse()
+
+	ap = argparse.ArgumentParser()
+	ap.add_argument("-i","--input_folder", nargs = "+")
+	ap.add_argument("-o","--output_folder")
+
+	args = ap.parse_args()
+	
+	parse(args.input_folder, args.output_folder)
+
 	# plotter()
 	# average_plotter()
