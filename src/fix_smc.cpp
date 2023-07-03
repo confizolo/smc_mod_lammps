@@ -815,8 +815,8 @@ void FixSMC::load_smc(long i) {
   }  
   if (num_avl == 0) error -> all(FLERR, "Not enough space for the smcs");
 
-  if (hdir != 0) hing[i] = anch[i] + 2 * hdir / abs(hdir);
-  else hing[i] = anch[i] - 2 * adir / abs(adir);
+  if (maxhdir != 0) hing[i] = anch[i] + 2;
+  else hing[i] = anch[i] - 2 * maxadir / abs(maxadir);
   
 
   MPI_Barrier(world);
