@@ -421,7 +421,7 @@ void FixSMC::post_integrate() {
       // Check if we are going to the polymer border on one side or on the other
 
       //funky divide by zero operation is possible here:
-      if (hdir / abs(hdir) < 0) {
+      if (hdir / (abs(hdir)+1) < 0) {
         if ((hing[i] + hdir) % lpol == 0){
           if (!ring) temphdir = 0;
           else temphdir = (lpol-1);
@@ -432,7 +432,7 @@ void FixSMC::post_integrate() {
           else temphdir = 1-lpol;
         }
       }
-      if (adir / abs(adir) < 0) {
+      if (adir / (abs(adir)+1) < 0) {
         if ((anch[i] + adir) % lpol == 0){
           if (!ring) tempadir = 0;
           else tempadir = (lpol-1);
