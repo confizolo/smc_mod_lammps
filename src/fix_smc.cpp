@@ -82,7 +82,7 @@ const char cite_fix_smc[] =
 
 FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
   Fix(lmp, narg, arg),
-  anch(nullptr), hing(nullptr), smctype(0), smcbtype(0), smcnum(0), debug(0) {
+  anch(nullptr), hing(nullptr), smctype(0), smcbtype(0), smcnum(0), debug(1) {
     if (lmp -> citeme) lmp -> citeme -> add(cite_fix_smc);
     // Number of arguments for the fix. The first three arguments are parsed by Fix base class constructor.
     // The rest are specific to this fix. 11 are mandatory
