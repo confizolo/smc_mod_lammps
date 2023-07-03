@@ -203,8 +203,6 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16):
 				run_str[target_idx] += "cd {}\n".format(rep_folder)
 				run_str[target_idx] += "~/lmp -in masterfile.lam < /dev/null > out \n"
 
-
-
 	if do_local:
 		with open(bash_target, "w") as f:
 			for _ in lp_bash_fps:
@@ -222,6 +220,7 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16):
 
 			with open(array_script_path, "w") as f:
 				f.write(run_str[i])
+			os.chmod(array_script_path, 0o755)
 
 		slurm_path = os.path.join(slurm_folder, jobname + ".slurm")
 
@@ -231,7 +230,7 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16):
 			f.write("#SBATCH --cpus-per-task=1\n")
 			f.write(f"#SBATCH --array=1-{npara}\n")
 
-			f.write(f"~/slurm-wd/{jobname}/run_{{SLURM_ARRAY_TASK_ID}}.sh")
+			f.write(f"~/slurm-wd/{jobname}/run_${{SLURM_ARRAY_TASK_ID}}.sh")
 
 
 		# parameters:
