@@ -13,7 +13,7 @@ def generate_master_lams_file():
 	# to vary bond coefficients, for future proofing
 	pass
 
-def main(do_local, do_slurm, jobname, nrep = 96, npara = 16):
+def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000):
 	# generate many scripts
 	# run all in a master lammps file using the `include` command
 	# batches of 20 replicas
@@ -61,7 +61,7 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16):
 	lpol = 1000 # length of polymer
 
 	ratesmc = 100 # smc movement attempt 
-	run_duration = 100000 # total number of steps
+	# run_duration = 100000 # total number of steps
 
 	# nrep = nrep # number of replicas to do
 	# npara = 16 # no. of parallel jobs
@@ -250,7 +250,8 @@ if __name__ == "__main__":
 	ap.add_argument("-s", "--slurm", action = "store_true") # generate the SBATCH script
 	ap.add_argument("-r", "--nrep", type = int, default = 96)
 	ap.add_argument("-p", "--npara", type = int, default = 8)
+	ap.add_argument("-t", "--run_time", type = int, default = 100000)
 	ap.add_argument("job_name") # generate the SBATCH script
 	args = ap.parse_args()
 
-	main(args.local, args.slurm, args.job_name, args.nrep, args.npara)
+	main(args.local, args.slurm, args.job_name, args.nrep, args.npara, args.run_time)

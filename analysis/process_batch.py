@@ -58,7 +58,7 @@ def parse(target_folders, output_folder):
 
 			for p in params:
 				_df[p] = params[p]
-			df = pd.concat([df, _df], ignore_index = True)
+			df = pd.concat([df, _df], ignore_index = True, sort = False)
 
 	df.to_csv(output_folder, index = False)
 
