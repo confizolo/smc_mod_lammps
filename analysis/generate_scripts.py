@@ -82,7 +82,7 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16):
 			"molecule_file" : '/home/v1zchoon/smc-lammps/data/In_conf.Nb1000.RW4.fixed.dat',
 			"script_stiff":"/home/v1zchoon/masterfile_stiff.lam",
 			# "folder":"/home/v1zchoon/smc-single-polymer/",
-			"folder":"/storage/scratch/smc-single-polymer",
+			"folder":"/storage/scratch/v1zchoon/smc-single-polymer",
 			"slurm_output": "/home/v1zchoon/slurm-wd",
 		}
 	}
