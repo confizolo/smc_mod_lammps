@@ -82,7 +82,7 @@ const char cite_fix_smc[] =
 
 FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
   Fix(lmp, narg, arg),
-  anch(nullptr), hing(nullptr), smctype(0), smcbtype(0), smcnum(0), debug(1) {
+  anch(nullptr), hing(nullptr), smctype(0), smcbtype(0), smcnum(0), debug(0) {
     if (lmp -> citeme) lmp -> citeme -> add(cite_fix_smc);
     // Number of arguments for the fix. The first three arguments are parsed by Fix base class constructor.
     // The rest are specific to this fix. 11 are mandatory
@@ -299,7 +299,7 @@ void FixSMC::post_integrate() {
   else if (update -> ntimestep % nevery == 0){
 
     // Return if the smcs are still
-    if ((hdir == 0) && (adir == 0)) return;
+    if ((maxhdir == 0) && (maxadir == 0)) return;
 
     double * xyzanchtemp = nullptr;
     double * xyzhingtemp = nullptr;
@@ -669,6 +669,8 @@ Returns position of i smc hinge or anchor depending on the flag
 */
 double FixSMC::compute_array(int i, int flag) {
   int rflag;
+  hdir = maxhdir;
+  adir = maxadir;
   if (hdir != 0) {
     rflag = hdir / abs(hdir);
   } else {
