@@ -67,7 +67,6 @@ def main(input_file):
 def plot_blocking(input_file, plot_folder) :
 	# input_file = "~/Documents/tap/smc-single-polymer/stiff_fix_analysis.csv"
 	df = pd.read_csv(input_file)
-	print(df)
 
 	fig, axs = plt.subplots(2)
 	# first plot is blocking fraction conditioned on reaching
@@ -86,16 +85,17 @@ def plot_blocking(input_file, plot_folder) :
 		y = []
 		yerr = []
 		n = []
+		times = []
 		for t, tf in _df.groupby("time"):
 			_n = len(tf[tf["reached"] == 1])
-			print(tf)
+			print(_n)
 			if _n:
 				y.append(tf.loc[tf["reached"] == 1, "blocked"].sum()/tf["reached"].sum())
 				yerr.append(1/np.sqrt(_n))
 				n.append(_n/len(tf))
 			else:
-				y.append(None)
-				yerr.append(None)
+				y.append(np.nan)
+				yerr.append(np.nan)
 				n.append(0)
 
 		times = _df["time"].unique()
@@ -104,9 +104,11 @@ def plot_blocking(input_file, plot_folder) :
 		axs[0].errorbar(times, y, yerr, color = colors[c], label = str(s), marker = "s", capsize = 3)
 		axs[0].set_ylim(0, 1)
 		axs[0].set_ylabel("Blocking fraction conditioned on LEF reaching stiff")
-		axs[1].set_ylabel("Fraction of LEF reaching stiff")
+
 		axs[1].plot(times, n, ".", color = colors[c], label = str(s))
 		axs[1].set_xlabel("Simulation time")
+		axs[1].set_ylabel("Fraction of LEF reaching stiff")
+
 	plt.legend()
 	fig.set_size_inches((8.6, 9))
 	plt.tight_layout()

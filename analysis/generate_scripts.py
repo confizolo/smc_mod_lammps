@@ -144,8 +144,6 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 			f.write("variable n_stiff equal {:d}\n".format(_n_stiff))
 			f.write("variable max_jump equal {:d}\n".format(int(lpol/2)))
 
-			f.write("variable noiseseed equal {:d}\n".format((random.randint(1, 32768))))
-			f.write("variable smcseed equal {:d}\n".format((random.randint(1, 32768))))
 
 			# f.write(f"angle_coeff 1 {lp:d}") # assumes that persistence length lp is an integer
 
@@ -162,11 +160,11 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 				f.write("cp -R -p -u ../parameters.dat .\n".format(parameter_fp)) # parameter file
 				f.write("cp -R -p -u {} masterfile.lam\n".format(master_script)) # lams script
 				f.write("cp -R -p -u {} molecule.dat\n".format(master_molecule_file))
-				# f.write("r1=$(shuf -i 1-32768 -n 1)\n")
-				# f.write("r2=$(shuf -i 1-32768 -n 1)\n")
+				f.write("r1=$(shuf -i 1-32768 -n 1)\n")
+				f.write("r2=$(shuf -i 1-32768 -n 1)\n")
 
-				# f.write("echo -e \"variable noiseseed equal $r1\\n\" >> parameters.dat\n")
-				# f.write("echo -e \"variable smcseed equal $r2\\n\" >> parameters.dat\n")
+				f.write("echo -e \"variable noiseseed equal $r1\\n\" >> parameters.dat\n")
+				f.write("echo -e \"variable smcseed equal $r2\\n\" >> parameters.dat\n")
 
 				# f.write("echo -e \"variable replica_id equal $i\\n\" >> parameters.dat\n")
 				# f.write("echo -e \"run {}\\n\" >> masterfile.lam\n".format(run_duration))
@@ -194,7 +192,13 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 				if not os.path.exists(rep_folder):
 					os.makedirs(rep_folder)
 
+
 				shutil.copy(parameter_fp, rep_folder)
+
+				with open(os.path.join(rep_folder, "parameters.dat"), "a") as f:
+					f.write("variable noiseseed equal {:d}\n".format((random.randint(1, 32768))))
+					f.write("variable smcseed equal {:d}\n".format((random.randint(1, 32768))))
+
 				shutil.copy(master_molecule_file, os.path.join(rep_folder, "molecule.dat"))
 				shutil.copy(master_script, os.path.join(rep_folder, "masterfile.lam"))
 
