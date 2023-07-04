@@ -699,9 +699,9 @@ bool FixSMC::check_avl(long i){
   int idnewan;
 
   // Instantiate the bead according to the direction
-  // if (hdir != 0) tmphing = i + 2 * hdir / abs(hdir);
-  // else tmphing = i - 2 * adir / abs(adir);
-  tmphing = i;
+  if (maxhdir != 0) tmphing = i + 2 * maxhdir / (abs(maxhdir));
+  else tmphing = i - 2 * (maxadir) / (abs(maxadir));
+  // tmphing = i;
 
   idnewhi = atom -> map(tmphing);
   idnewan = atom -> map(tmphing);

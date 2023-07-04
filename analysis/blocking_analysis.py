@@ -1,4 +1,6 @@
+import os
 import numpy as np
+import argparse
 import matplotlib
 import math
 import matplotlib.pyplot as plt
@@ -16,14 +18,14 @@ def filter_generator(df, lps, get_lp_id = False):
 			else:
 				yield (df["replica_id"] == rep) & lp_filter
 
-def main():
-
-	input_file = "~/Documents/tap/smc-single-polymer/stiff_test-redo.csv"
+def main(input_file):
 	lpol = 1000
 
 	df = pd.read_csv(input_file)
 
 	stiffs = df["n_stiff"].unique()
+
+	output_file = os.path.join(os.path.dirname(input_file), "processed_" + os.path.basename(input_file))
 
 	output_df = pd.DataFrame(columns = ["n_stiff", "blocked"])
 
@@ -58,12 +60,14 @@ def main():
 		_df = pd.DataFrame(_df)
 		output_df = pd.concat([output_df, _df], ignore_index = True)
 
-	output_df.to_csv("~/Documents/tap/smc-single-polymer/stiff_fix_analysis.csv", index = False)
+	output_df.to_csv(output_file, index = False)
 
+	return output_file
 
-def plot_blocking(input_file):
-	input_file = "~/Documents/tap/smc-single-polymer/stiff_fix_analysis.csv"
+def plot_blocking(input_file, plot_folder) :
+	# input_file = "~/Documents/tap/smc-single-polymer/stiff_fix_analysis.csv"
 	df = pd.read_csv(input_file)
+	print(df)
 
 	fig, axs = plt.subplots(2)
 	# first plot is blocking fraction conditioned on reaching
@@ -84,6 +88,7 @@ def plot_blocking(input_file):
 		n = []
 		for t, tf in _df.groupby("time"):
 			_n = len(tf[tf["reached"] == 1])
+			print(tf)
 			if _n:
 				y.append(tf.loc[tf["reached"] == 1, "blocked"].sum()/tf["reached"].sum())
 				yerr.append(1/np.sqrt(_n))
@@ -94,6 +99,8 @@ def plot_blocking(input_file):
 				n.append(0)
 
 		times = _df["time"].unique()
+
+		print(times, y, yerr)
 		axs[0].errorbar(times, y, yerr, color = colors[c], label = str(s), marker = "s", capsize = 3)
 		axs[0].set_ylim(0, 1)
 		axs[0].set_ylabel("Blocking fraction conditioned on LEF reaching stiff")
@@ -103,9 +110,18 @@ def plot_blocking(input_file):
 	plt.legend()
 	fig.set_size_inches((8.6, 9))
 	plt.tight_layout()
-	plt.savefig("plots/stiff_fix_blocking_over_time.png", dpi = 300)
+
+	plot_path = os.path.join(plot_folder, os.path.basename(input_file) + ".png")
+
+	plt.savefig(plot_path, dpi = 300)
 
 
 if __name__ == "__main__":
-	# main()
-	plot_blocking("")
+	ap = argparse.ArgumentParser()
+	ap.add_argument("input_file")
+	ap.add_argument("plot_folder")
+	args = ap.parse_args()
+
+	analysis_file = main(args.input_file)
+
+	plot_blocking(analysis_file, args.plot_folder)
