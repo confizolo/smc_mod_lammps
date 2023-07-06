@@ -704,7 +704,7 @@ bool FixSMC::check_avl(long i){
   // tmphing = i;
 
   idnewhi = atom -> map(tmphing);
-  idnewan = atom -> map(tmphing);
+  idnewan = atom -> map(i);
   
   mdbead = (i + tmphing)/2;
 
