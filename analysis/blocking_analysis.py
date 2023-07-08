@@ -64,8 +64,8 @@ def main(input_file):
 
 	return output_file
 
-def plot_blocking(input_file, plot_folder) :
-	# input_file = "~/Documents/tap/smc-single-polymer/stiff_fix_analysis.csv"
+
+def plot_blocking(input_file, plot_folder, t_slice = 200000) :
 	df = pd.read_csv(input_file)
 
 	fig, axs = plt.subplots(2)
@@ -81,26 +81,39 @@ def plot_blocking(input_file, plot_folder) :
 	nstiff = df["n_stiff"].nunique()
 	colors = [cmap(x) for x in np.linspace(0, 1, nstiff )]
 
+	slice_y = []
+	slice_yerr = []
+	slice_n = []
+	slice_s = []
+
 	for c, (s, _df) in enumerate(df.groupby("n_stiff")):
 		y = []
 		yerr = []
 		n = []
 		times = []
+
+		slice_s.append(s)
+
 		for t, tf in _df.groupby("time"):
 			_n = len(tf[tf["reached"] == 1])
-			print(_n)
 			if _n:
-				y.append(tf.loc[tf["reached"] == 1, "blocked"].sum()/tf["reached"].sum())
+				_y = tf.loc[tf["reached"] == 1, "blocked"].sum()/tf["reached"].sum()
+				y.append(_y)
 				yerr.append(1/np.sqrt(_n))
 				n.append(_n/len(tf))
+
+				if t == t_slice:
+					slice_y.append(_y)
+					slice_yerr.append(1/np.sqrt(_n))
+					slice_n.append(_n/len(tf))
 			else:
 				y.append(np.nan)
 				yerr.append(np.nan)
 				n.append(0)
 
+
 		times = _df["time"].unique()
 
-		print(times, y, yerr)
 		axs[0].errorbar(times, y, yerr, color = colors[c], label = str(s), marker = "s", capsize = 3)
 		axs[0].set_ylim(0, 1)
 		axs[0].set_ylabel("Blocking fraction conditioned on LEF reaching stiff")
@@ -117,13 +130,40 @@ def plot_blocking(input_file, plot_folder) :
 
 	plt.savefig(plot_path, dpi = 300)
 
+	if t_slice > 0:
+		fig, axs = plt.subplots(2)
+		fig.suptitle(f"Slice at t = {t_slice}")
+
+		axs[0].errorbar(slice_s, slice_y, slice_yerr, color = "k", capsize = 3, marker = ".")
+		axs[0].set_xlabel("No. of stiff beads ($l_p$ = 50)") # make this automatic later
+		axs[0].set_ylabel("Blocking fraction at $t$")
+		axs[0].set_title("Errorbars: $n_{replicas}^{-1/2}$")
+
+		axs[1].plot(slice_s, slice_n, "b.")
+		axs[1].set_xlabel("No. of stiff beads ($l_p$ = 50)")
+		axs[1].set_ylabel("Fraction of LEF reaching stiff")
+		# axs[1].set_ylim(0, 1)
+
+		fig.set_size_inches((8.6, 9))
+		plt.tight_layout()
+
+		plot_path = os.path.join(plot_folder, "time_slice-" + os.path.basename(input_file) + ".png")
+
+		plt.savefig(plot_path, dpi = 300)
+
 
 if __name__ == "__main__":
 	ap = argparse.ArgumentParser()
 	ap.add_argument("input_file")
 	ap.add_argument("plot_folder")
+	ap.add_argument("-n", "--no_compute", action = "store_false", default = True)
+	ap.add_argument("-t", "--t_slice", type = int, default = -1)
+
 	args = ap.parse_args()
 
-	analysis_file = main(args.input_file)
+	if args.no_compute:
+		analysis_file = main(args.input_file)
+	else:
+		analysis_file = os.path.join(os.path.dirname(args.input_file), "processed_" + os.path.basename(args.input_file))
 
-	plot_blocking(analysis_file, args.plot_folder)
+	plot_blocking(analysis_file, args.plot_folder, args.t_slice)

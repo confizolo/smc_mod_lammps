@@ -13,7 +13,7 @@ def generate_master_lams_file():
 	# to vary bond coefficients, for future proofing
 	pass
 
-def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000):
+def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, lp_stiff = [50]):
 	# generate many scripts
 	# run all in a master lammps file using the `include` command
 	# batches of 20 replicas
@@ -51,7 +51,7 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 
 	start_delta = 20 # hard coded in the fix... 
 
-	lp_stiff = [50]
+	# lp_stiff = [50]
 	n_stiff = [1, 2, 3, 7, 10, 14]
 
 	lp_list = [5] # list of persistence lengths to run through
@@ -255,7 +255,9 @@ if __name__ == "__main__":
 	ap.add_argument("-r", "--nrep", type = int, default = 96)
 	ap.add_argument("-p", "--npara", type = int, default = 8)
 	ap.add_argument("-t", "--run_time", type = int, default = 100000)
+	ap.add_argument("-lpst", "--lp_stiff", type = int, nargs = "+", default = [50])
+
 	ap.add_argument("job_name") # generate the SBATCH script
 	args = ap.parse_args()
 
-	main(args.local, args.slurm, args.job_name, args.nrep, args.npara, args.run_time)
+	main(args.local, args.slurm, args.job_name, args.nrep, args.npara, args.run_time, args.lp_stiff)
