@@ -263,4 +263,4 @@ if __name__ == "__main__":
 	ap.add_argument("job_name") # generate the SBATCH script
 	args = ap.parse_args()
 
-	main(args.local, args.slurm, args.job_name, args.nrep, args.npara, args.run_time, args.lp_stiff)
+	main(args.local, args.slurm, args.job_name, args.nrep, args.npara, args.run_time, args.lp_stiff, args.add_force)
