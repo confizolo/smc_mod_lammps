@@ -145,8 +145,8 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 			f.write("variable max_jump equal {:d}\n".format(int(lpol/2)))
 
 			if add_force:
-				f.write("group end1 index 1\n")
-				f.write("group end2 index 1000\n")
+				f.write("group end1 id 1\n")
+				f.write("group end2 id 1000\n")
 				f.write("fix tension1 end1 addforce -1.0 0.0 0.0\n")
 				f.write("fix tension2 end2 addforce 1.0 0.0 0.0\n")
 
