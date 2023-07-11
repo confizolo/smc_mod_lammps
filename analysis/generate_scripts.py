@@ -13,7 +13,7 @@ def generate_master_lams_file():
 	# to vary bond coefficients, for future proofing
 	pass
 
-def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, lp_stiff = [50]):
+def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, lp_stiff = [50], add_force = False):
 	# generate many scripts
 	# run all in a master lammps file using the `include` command
 	# batches of 20 replicas
@@ -144,13 +144,15 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 			f.write("variable n_stiff equal {:d}\n".format(_n_stiff))
 			f.write("variable max_jump equal {:d}\n".format(int(lpol/2)))
 
-
-			# f.write(f"angle_coeff 1 {lp:d}") # assumes that persistence length lp is an integer
+			if add_force:
+				f.write("group end1 index 1\n")
+				f.write("group end2 index 1000\n")
+				f.write("fix tension1 end1 addforce -1.0 0.0 0.0\n")
+				f.write("fix tension2 end2 addforce 1.0 0.0 0.0\n")
 
 		if do_local:
 			with open(lp_bash_fp, 'w') as f:
 				f.write(f"nparajobs={npara}\n")
-				# f.write("export OMP_NUM_THREADS=8\n")
 				f.write("cd {}\n".format(lp_folder))
 				f.write("for i in {{{}..{}}}; do\n".format(start_index, start_index + nrep - 1))
 				f.write("mkdir -p rep$i\n")
@@ -256,6 +258,7 @@ if __name__ == "__main__":
 	ap.add_argument("-p", "--npara", type = int, default = 8)
 	ap.add_argument("-t", "--run_time", type = int, default = 100000)
 	ap.add_argument("-lpst", "--lp_stiff", type = int, nargs = "+", default = [50])
+	ap.add_argument('-f', '--add_force', action = "store_true")
 
 	ap.add_argument("job_name") # generate the SBATCH script
 	args = ap.parse_args()
