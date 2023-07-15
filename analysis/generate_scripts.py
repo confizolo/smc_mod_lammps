@@ -13,7 +13,7 @@ def generate_master_lams_file():
 	# to vary bond coefficients, for future proofing
 	pass
 
-def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, lp_stiff = [50], add_force = False):
+def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, lp_stiff = [50], add_force = False, custom_masterfile):
 	# generate many scripts
 	# run all in a master lammps file using the `include` command
 	# batches of 20 replicas
@@ -125,6 +125,10 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 			lp_folder = os.path.join(master_folder, jobname, f"N{lpol}", f"lp{lp:02}", f"lp-stiff{_lp_stiff:02}", f"n-stiff{_n_stiff:d}")
 
 			_start_position = int((lpol - _n_stiff)/2 - 20) # ??? e.g. for 1000 - 100, start at 430, move until 450
+
+		# override:
+		if len(custom_masterfile):
+			master_script = custom_masterfile
 
 		parameter_fp = os.path.join(lp_folder, 'parameters.dat')
 
@@ -261,8 +265,9 @@ if __name__ == "__main__":
 	ap.add_argument("-t", "--run_time", type = int, default = 100000)
 	ap.add_argument("-lpst", "--lp_stiff", type = int, nargs = "+", default = [50])
 	ap.add_argument('-f', '--add_force', action = "store_true")
+	ap.add_argument('-m', '--masterfile', default = "")
 
 	ap.add_argument("job_name") # generate the SBATCH script
 	args = ap.parse_args()
 
-	main(args.local, args.slurm, args.job_name, args.nrep, args.npara, args.run_time, args.lp_stiff, args.add_force)
+	main(args.local, args.slurm, args.job_name, args.nrep, args.npara, args.run_time, args.lp_stiff, args.add_force, args.masterfile)
