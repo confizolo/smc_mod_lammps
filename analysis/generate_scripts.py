@@ -13,7 +13,7 @@ def generate_master_lams_file():
 	# to vary bond coefficients, for future proofing
 	pass
 
-def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, lp_stiff = [50], add_force = False, custom_masterfile):
+def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, lp_stiff = [50], add_force = False, custom_masterfile = ""):
 	# generate many scripts
 	# run all in a master lammps file using the `include` command
 	# batches of 20 replicas
