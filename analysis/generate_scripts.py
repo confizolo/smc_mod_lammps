@@ -88,6 +88,7 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 	}
 	###############################
 	master_folder = default_paths[path_str]["folder"]
+	global_counter = 0
 
 
 	bash_target = os.path.join(master_folder, jobname, 'run.sh')
@@ -204,7 +205,8 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 				shutil.copy(master_molecule_file, os.path.join(rep_folder, "molecule.dat"))
 				shutil.copy(master_script, os.path.join(rep_folder, "masterfile.lam"))
 
-				target_idx = rep % npara
+				target_idx = global_counter % npara
+				global_counter += 1
 
 				run_str[target_idx] += "cd {}\n".format(rep_folder)
 				run_str[target_idx] += "~/lmp -in masterfile.lam < /dev/null > out \n"

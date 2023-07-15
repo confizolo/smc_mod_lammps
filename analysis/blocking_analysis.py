@@ -65,7 +65,7 @@ def main(input_file):
 	return output_file
 
 
-def plot_blocking(input_file, plot_folder, t_slice = 200000) :
+def plot_blocking(input_file, plot_folder, t_slice = 200000, xlog = False, uid = "") :
 	df = pd.read_csv(input_file)
 
 	fig, axs = plt.subplots(2)
@@ -121,12 +121,15 @@ def plot_blocking(input_file, plot_folder, t_slice = 200000) :
 		axs[1].plot(times, n, ".", color = colors[c], label = str(s))
 		axs[1].set_xlabel("Simulation time")
 		axs[1].set_ylabel("Fraction of LEF reaching stiff")
+		if xlog: 
+			axs[0].set_xscale("log")
+			axs[1].set_xscale("log")
 
 	plt.legend()
 	fig.set_size_inches((8.6, 9))
 	plt.tight_layout()
 
-	plot_path = os.path.join(plot_folder, os.path.basename(input_file) + ".png")
+	plot_path = os.path.join(plot_folder, os.path.basename(input_file) + uid + ".png")
 
 	plt.savefig(plot_path, dpi = 300)
 
@@ -143,11 +146,14 @@ def plot_blocking(input_file, plot_folder, t_slice = 200000) :
 		axs[1].set_xlabel("No. of stiff beads ($l_p$ = 50)")
 		axs[1].set_ylabel("Fraction of LEF reaching stiff")
 		# axs[1].set_ylim(0, 1)
+		if xlog: 
+			axs[0].set_xscale("log")
+			axs[1].set_xscale("log")
 
 		fig.set_size_inches((8.6, 9))
 		plt.tight_layout()
 
-		plot_path = os.path.join(plot_folder, "time_slice-" + os.path.basename(input_file) + ".png")
+		plot_path = os.path.join(plot_folder, "time_slice-" + os.path.basename(input_file) + uid + ".png")
 
 		plt.savefig(plot_path, dpi = 300)
 
@@ -158,6 +164,8 @@ if __name__ == "__main__":
 	ap.add_argument("plot_folder")
 	ap.add_argument("-n", "--no_compute", action = "store_false", default = True)
 	ap.add_argument("-t", "--t_slice", type = int, default = -1)
+	ap.add_argument("-l", "--xlog", action = "store_true")
+	ap.add_argument("-id", "--uid", default = "")
 
 	args = ap.parse_args()
 
@@ -166,4 +174,4 @@ if __name__ == "__main__":
 	else:
 		analysis_file = os.path.join(os.path.dirname(args.input_file), "processed_" + os.path.basename(args.input_file))
 
-	plot_blocking(analysis_file, args.plot_folder, args.t_slice)
+	plot_blocking(analysis_file, args.plot_folder, args.t_slice, args.xlog, args.uid)

@@ -5,3 +5,5 @@ results/
 *.pyc
 *.dat
 *.png
+videos/
+*.lammpstrj
