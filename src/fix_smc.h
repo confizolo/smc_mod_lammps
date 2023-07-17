@@ -12,7 +12,7 @@
 ------------------------------------------------------------------------- */
 
 /* ----------------------------------------------------------------------
-   Contributing authors: Filippo Conforto
+   Contributing authors: Filippo Conforto (s2469797@ed.ac.uk), Choong Zheng Yang (zchoong001@e.ntu.edu.sg)
 ------------------------------------------------------------------------- */
 #ifdef FIX_CLASS
 // clang-format off
@@ -51,12 +51,13 @@ namespace LAMMPS_NS
    private:
       long *anch, *hing, *av_list;
       long num_avl;
-      int seed, smctype, smcbtype, smcbitype, lpol, maxadir, maxhdir, adir, hdir, smcnum, initmode, ring, nblockt, fixed_hinge_position;
+      int seed, smctype, smcbtype, smcbitype, lpol, maxadir, maxhdir, adir, hdir, smcnum, initmode, ring, nblockt;
       int *blockt;
       double prob, cutoff, kon, koff;
       double *xyzanch, *xyzhing;
       bool debug;
       class RanPark *random_equal;
+      std::string fixFname;
    };
 
 } // namespace LAMMPS_NS
