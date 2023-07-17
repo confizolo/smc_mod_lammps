@@ -1,3 +1,6 @@
+import shutil
+import random
+import argparse
 import itertools
 import os
 from stiff import generate_stiff
@@ -10,7 +13,7 @@ def generate_master_lams_file():
 	# to vary bond coefficients, for future proofing
 	pass
 
-def main():
+def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, lp_stiff = [50], add_force = False, custom_masterfile = "", regenerate_stiff = False):
 	# generate many scripts
 	# run all in a master lammps file using the `include` command
 	# batches of 20 replicas
@@ -36,12 +39,19 @@ def main():
 	#
 	#
 	#
-	master_folder = '/home/zy/Documents/tap/smc-single-polymer/' 
-	jobname = 'stiff-14-fix-edgecase'
+
+	if do_local:
+		path_str = "local"
+	else:
+		path_str = "slurm"
+
+
+	# master_folder = '/home/zy/Documents/tap/smc-single-polymer/' 
+	# jobname = 'stiff-14-fix-edgecase'
 
 	start_delta = 20 # hard coded in the fix... 
 
-	lp_stiff = [50]
+	# lp_stiff = [50]
 	n_stiff = [1, 2, 3, 7, 10, 14]
 
 	lp_list = [5] # list of persistence lengths to run through
@@ -51,44 +61,74 @@ def main():
 	lpol = 1000 # length of polymer
 
 	ratesmc = 100 # smc movement attempt 
-	run_duration = 100000 # total number of steps
+	# run_duration = 100000 # total number of steps
 
-	nrep = 96 # number of replicas to do
-	npara = 8 # no. of parallel jobs
+	# nrep = nrep # number of replicas to do
+	# npara = 16 # no. of parallel jobs
 	start_index = 0
+
 	#
 	#
 	#
+	default_paths = {
+		"local":{
+			"script":'/home/zy/Documents/tap/masterfile.lam',
+			"molecule_file" : '/home/zy/Documents/tap/smc-lammps/data/In_conf.Nb1000.RW4.fixed.dat',
+			"script_stiff":"/home/zy/Documents/tap/masterfile_stiff.lam",
+			"folder":"/home/zy/Documents/tap/smc-single-polymer/",
+		},
+		"slurm":{
+			"script":'/home/v1zchoon/masterfile.lam',
+			"molecule_file" : '/home/v1zchoon/smc-lammps/data/In_conf.Nb1000.RW4.fixed.dat',
+			"script_stiff":"/home/v1zchoon/masterfile_stiff.lam",
+			# "folder":"/home/v1zchoon/smc-single-polymer/",
+			"folder":"/storage/scratch/v1zchoon/smc-single-polymer",
+			"slurm_output": "/home/v1zchoon/slurm-wd",
+		}
+	}
 	###############################
+	master_folder = default_paths[path_str]["folder"]
+	global_counter = 0
+
 
 	bash_target = os.path.join(master_folder, jobname, 'run.sh')
 
 	if not os.path.exists(master_folder):
 		os.makedirs(master_folder)
+	if do_slurm:
+		slurm_folder = os.path.join(default_paths["slurm"]["slurm_output"], )
+		if not os.path.exists(slurm_folder):
+			os.makedirs(slurm_folder)
 	
 
 	lp_bash_fps = [] # collect all the different bash files to execute all at once
+	run_str = ["" for _ in range(npara)]
 
-	for p in parameter_set:
+	for p in (parameter_set):
 		lp = p[0]
 
 		if p[1] == None or p[2] == None:
-			master_script = '/home/zy/Documents/tap/masterfile.lam'
-			master_molecule_file = '/home/zy/Documents/tap/smc-lammps/data/In_conf.Nb1000.RW4.fixed.dat'
+			master_script = default_paths[path_str]["script"] 
+			master_molecule_file = default_paths[path_str]["molecule_file"] 
 
 			lp_folder = os.path.join(master_folder, jobname, f"N{lpol}", f"lp{lp:02}")
 			_start_position = 0
 
 		else:
-			master_script = '/home/zy/Documents/tap/masterfile_stiff.lam'
+			master_script = default_paths[path_str]["script_stiff"] 
 
 			_lp_stiff = p[1]
 			_n_stiff = p[2]
-			master_molecule_file = generate_stiff(_n_stiff)
+
+			master_molecule_file = generate_stiff(_n_stiff, os.path.join(master_folder, "stiff_molecules"), default_paths[path_str]["molecule_file"], force = regenerate_stiff)
 
 			lp_folder = os.path.join(master_folder, jobname, f"N{lpol}", f"lp{lp:02}", f"lp-stiff{_lp_stiff:02}", f"n-stiff{_n_stiff:d}")
 
 			_start_position = int((lpol - _n_stiff)/2 - 20) # ??? e.g. for 1000 - 100, start at 430, move until 450
+
+		# override:
+		if len(custom_masterfile):
+			master_script = custom_masterfile
 
 		parameter_fp = os.path.join(lp_folder, 'parameters.dat')
 
@@ -108,42 +148,102 @@ def main():
 			f.write("variable start_position equal {:d}\n".format(_start_position))
 			f.write("variable n_stiff equal {:d}\n".format(_n_stiff))
 			f.write("variable max_jump equal {:d}\n".format(int(lpol/2)))
-			# f.write(f"angle_coeff 1 {lp:d}") # assumes that persistence length lp is an integer
 
-		with open(lp_bash_fp, 'w') as f:
-			f.write(f"nparajobs={npara}\n")
-			# f.write("export OMP_NUM_THREADS=8\n")
-			f.write("cd {}\n".format(lp_folder))
-			f.write("for i in {{{}..{}}}; do\n".format(start_index, start_index + nrep - 1))
-			f.write("mkdir -p rep$i\n")
-			f.write("cd rep$i\n")
-			f.write("vi=$(( ${i}%${nparajobs} ))\n")
+			if add_force:
+				f.write("group end1 id 1\n")
+				f.write("group end2 id 1000\n")
+				f.write("fix tension1 end1 addforce -1.0 0.0 0.0\n")
+				f.write("fix tension2 end2 addforce 1.0 0.0 0.0\n")
 
-			f.write("cp -R -p -u ../parameters.dat .\n".format(parameter_fp)) # parameter file
-			f.write("cp -R -p -u {} masterfile.lam\n".format(master_script)) # lams script
-			f.write("cp -R -p -u {} molecule.dat\n".format(master_molecule_file))
-			f.write("r1=$(shuf -i 1-32768 -n 1)\n")
-			f.write("r2=$(shuf -i 1-32768 -n 1)\n")
+		if do_local:
+			with open(lp_bash_fp, 'w') as f:
+				f.write(f"nparajobs={npara}\n")
+				f.write("cd {}\n".format(lp_folder))
+				f.write("for i in {{{}..{}}}; do\n".format(start_index, start_index + nrep - 1))
+				f.write("mkdir -p rep$i\n")
+				f.write("cd rep$i\n")
+				f.write("vi=$(( ${i}%${nparajobs} ))\n")
 
-			f.write("echo -e \"variable noiseseed equal $r1\\n\" >> parameters.dat\n")
-			f.write("echo -e \"variable smcseed equal $r2\\n\" >> parameters.dat\n")
-			# f.write("echo -e \"variable replica_id equal $i\\n\" >> parameters.dat\n")
-			# f.write("echo -e \"run {}\\n\" >> masterfile.lam\n".format(run_duration))
+				f.write("cp -R -p -u ../parameters.dat .\n".format(parameter_fp)) # parameter file
+				f.write("cp -R -p -u {} masterfile.lam\n".format(master_script)) # lams script
+				f.write("cp -R -p -u {} molecule.dat\n".format(master_molecule_file))
+				f.write("r1=$(shuf -i 1-32768 -n 1)\n")
+				f.write("r2=$(shuf -i 1-32768 -n 1)\n")
 
-			f.write("mpirun --cpu-set $vi -display-map -n 1 -bind-to none ~/lmp -in masterfile.lam < /dev/null > out &\n")
-			# f.write("wait\n")
-			f.write("cd ..\n")
-			f.write("if(( ${{vi}} == {} )); then\nwait\nfi\n".format(npara - 1))
-			f.write("done\n")
-			f.write("wait")
+				f.write("echo -e \"variable noiseseed equal $r1\\n\" >> parameters.dat\n")
+				f.write("echo -e \"variable smcseed equal $r2\\n\" >> parameters.dat\n")
 
-		os.chmod(lp_bash_fp, 0o755)
+				# f.write("echo -e \"variable replica_id equal $i\\n\" >> parameters.dat\n")
+				# f.write("echo -e \"run {}\\n\" >> masterfile.lam\n".format(run_duration))
 
-	with open(bash_target, "w") as f:
-		for _ in lp_bash_fps:
-			f.write("echo " + _ + "\n")
-			f.write(_ + "\n")
-	os.chmod(bash_target, 0o755)
+				f.write("mpirun --cpu-set $vi -display-map -n 1 -bind-to none ~/lmp -in masterfile.lam < /dev/null > out &\n")
+				# f.write("wait\n")
+				f.write("cd ..\n")
+				f.write("if(( ${{vi}} == {} )); then\nwait\nfi\n".format(npara - 1))
+				f.write("done\n")
+				f.write("wait")
+
+			os.chmod(lp_bash_fp, 0o755)
+
+		if do_slurm:
+			# generate sbatch script
+			# use array size of 16 (flexible) to call different scripts running serially
+
+			# create the replica folders on local scratch (/scratch) which is arbitrary and probably unretrievable 
+
+			# master folder created by default
+
+
+			for rep in range(nrep):
+				rep_folder = os.path.join(lp_folder, f"rep{rep}")
+				if not os.path.exists(rep_folder):
+					os.makedirs(rep_folder)
+
+
+				shutil.copy(parameter_fp, rep_folder)
+
+				with open(os.path.join(rep_folder, "parameters.dat"), "a") as f:
+					f.write("variable noiseseed equal {:d}\n".format((random.randint(1, 32768))))
+					f.write("variable smcseed equal {:d}\n".format((random.randint(1, 32768))))
+
+				shutil.copy(master_molecule_file, os.path.join(rep_folder, "molecule.dat"))
+				shutil.copy(master_script, os.path.join(rep_folder, "masterfile.lam"))
+
+				target_idx = global_counter % npara
+				global_counter += 1
+
+				run_str[target_idx] += "cd {}\n".format(rep_folder)
+				run_str[target_idx] += "~/lmp -in masterfile.lam < /dev/null > out \n"
+
+	if do_local:
+		with open(bash_target, "w") as f:
+			for _ in lp_bash_fps:
+				f.write("echo " + _ + "\n")
+				f.write(_ + "\n")
+		os.chmod(bash_target, 0o755)
+
+	elif do_slurm:
+		slurm_job = os.path.join(slurm_folder, jobname)
+		if not os.path.exists(slurm_job):
+			os.makedirs(slurm_job)
+
+		for i in range(npara):
+			array_script_path = os.path.join(slurm_folder, jobname, f"run_{i}.sh")
+
+			with open(array_script_path, "w") as f:
+				f.write(run_str[i])
+			os.chmod(array_script_path, 0o755)
+
+		slurm_path = os.path.join(slurm_folder, jobname + ".slurm")
+
+		with open(slurm_path, "w") as f:
+			f.write("#!/bin/bash\n")
+			f.write("#SBATCH --ntasks=1\n")
+			f.write("#SBATCH --cpus-per-task=1\n")
+			f.write(f"#SBATCH --array=0-{npara-1}\n")
+			f.write(f"#SBATCH --job-name={jobname}\n")
+
+			f.write(f"~/slurm-wd/{jobname}/run_${{SLURM_ARRAY_TASK_ID}}.sh")
 
 
 		# parameters:
@@ -157,4 +257,18 @@ def main():
 	# wahoo
 
 if __name__ == "__main__":
-	main()
+	ap = argparse.ArgumentParser()
+	ap.add_argument("-l", "--local", action = "store_true")
+	ap.add_argument("-s", "--slurm", action = "store_true") # generate the SBATCH script
+	ap.add_argument("-r", "--nrep", type = int, default = 96)
+	ap.add_argument("-p", "--npara", type = int, default = 8)
+	ap.add_argument("-t", "--run_time", type = int, default = 100000)
+	ap.add_argument("-lpst", "--lp_stiff", type = int, nargs = "+", default = [50])
+	ap.add_argument('-f', '--add_force', action = "store_true")
+	ap.add_argument('-m', '--masterfile', default = "")
+	ap.add_argument("-rgs", "--regenerate_stiff", action = "store_true")
+
+	ap.add_argument("job_name") # generate the SBATCH script
+	args = ap.parse_args()
+
+	main(args.local, args.slurm, args.job_name, args.nrep, args.npara, args.run_time, args.lp_stiff, args.add_force, args.masterfile, args.regenerate_stiff)

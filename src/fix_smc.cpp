@@ -309,7 +309,7 @@ void FixSMC::post_integrate() {
   else if (update -> ntimestep % nevery == 0){
 
     // If movement is disabled along both directions stop execution
-    if ((hdir == 0) && (adir == 0)) return;
+    if ((maxhdir == 0) && (maxadir == 0)) return;
 
     double * xyzanchtemp = nullptr;
     double * xyzhingtemp = nullptr;
@@ -426,7 +426,7 @@ void FixSMC::post_integrate() {
       // Temporary direction if the smc is going towards the polymer end or another smc bead
 
       // Check if the SMCs' ends are moving over the polymer ends
-      if (hdir / abs(hdir) < 0) {
+      if (hdir / (abs(hdir)+1) < 0) {
         if ((hing[i] + hdir) % lpol == 0){
           if (!ring) temphdir = 0;
           else temphdir = (lpol-1);
@@ -437,7 +437,7 @@ void FixSMC::post_integrate() {
           else temphdir = 1-lpol;
         }
       }
-      if (adir / abs(adir) < 0) {
+      if (adir / (abs(adir)+1) < 0) {
         if ((anch[i] + adir) % lpol == 0){
           if (!ring) tempadir = 0;
           else tempadir = (lpol-1);
@@ -612,11 +612,11 @@ bool FixSMC::check_avl(long i){
   int idnewan;
 
   // Define hinge position according to movement direction
-  if (hdir != 0) tmphing = i + 2 * hdir / abs(hdir);
-  else tmphing = i - 2 * adir / abs(adir);
+  if (maxhdir != 0) tmphing = i + 2 * maxhdir / (abs(maxhdir));
+  else tmphing = i - 2 * (maxadir) / (abs(maxadir));
 
   idnewhi = atom -> map(tmphing);
-  idnewan = atom -> map(tmphing);
+  idnewan = atom -> map(i);
   
   // Define SMC's center
   mdbead = (i + tmphing)/2;
@@ -745,8 +745,8 @@ void FixSMC::load_smc(long i) {
 
   if (num_avl == 0) error -> all(FLERR, "Not enough space for the smcs");
 
-  if (hdir != 0) hing[i] = anch[i] + 2 * hdir / abs(hdir);
-  else hing[i] = anch[i] - 2 * adir / abs(adir);
+  if (maxhdir != 0) hing[i] = anch[i] + 2;
+  else hing[i] = anch[i] - 2 * maxadir / abs(maxadir);
   
 
   MPI_Barrier(world);

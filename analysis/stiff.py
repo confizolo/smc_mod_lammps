@@ -1,7 +1,8 @@
 import os
 
-def generate_stiff(sl: int, force = False):
-	MOLECULE_FILE = "/home/zy/Documents/tap/smc-lammps/data/In_conf.Nb1000.RW4.fixed.dat"
+def generate_stiff(sl: int, molecule_folder, molecule_file, force = False):
+	# MOLECULE_FILE = "/home/zy/Documents/tap/smc-lammps/data/In_conf.Nb1000.RW4.fixed.dat"
+	MOLECULE_FILE = molecule_file
 	NEW_ATOM = 4
 	NEW_ANGLE = 2
 	assert sl
@@ -16,7 +17,10 @@ def generate_stiff(sl: int, force = False):
 	text[7] = "2 angle types\n"
 	text.insert(18, "4 1\n")
 
-	output_path = f"molecules/stiff_{sl}.dat"
+	if not os.path.exists(molecule_folder):
+		os.makedirs(molecule_folder)
+
+	output_path = os.path.join(molecule_folder, f"stiff_{sl}.dat")
 	lpol = 1000
 
 	if os.path.exists(output_path) and not force:
