@@ -79,7 +79,7 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 		},
 		"slurm":{
 			"script":'/home/v1zchoon/masterfile.lam',
-			"molecule_file" : '/home/v1zchoon/smc-lammps/data/In_conf.Nb1000.RW4.fixed.dat',
+			"molecule_file" : '/home/v1zchoon/smc-lammps/initfiles/single.dat',
 			"script_stiff":"/home/v1zchoon/masterfile_stiff.lam",
 			# "folder":"/home/v1zchoon/smc-single-polymer/",
 			"folder":"/storage/scratch/v1zchoon/smc-single-polymer",
@@ -242,6 +242,7 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 			f.write("#SBATCH --cpus-per-task=1\n")
 			f.write(f"#SBATCH --array=0-{npara-1}\n")
 			f.write(f"#SBATCH --job-name={jobname}\n")
+			f.write(f"#SBATCH --partition=short\n")
 
 			f.write(f"~/slurm-wd/{jobname}/run_${{SLURM_ARRAY_TASK_ID}}.sh")
 
