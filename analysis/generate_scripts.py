@@ -263,7 +263,7 @@ if __name__ == "__main__":
 	ap.add_argument("-r", "--nrep", type = int, default = 96)
 	ap.add_argument("-p", "--npara", type = int, default = 8)
 	ap.add_argument("-t", "--run_time", type = int, default = 100000)
-	ap.add_argument("-lpst", "--lp_stiff", type = int, nargs = "+", default = [50])
+	ap.add_argument("-lpst", "--lp_stiff", type = int, nargs = "+", default = [200])
 	ap.add_argument('-f', '--add_force', action = "store_true")
 	ap.add_argument('-m', '--masterfile', default = "")
 	ap.add_argument("-rgs", "--regenerate_stiff", action = "store_true")
