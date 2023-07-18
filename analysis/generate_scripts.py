@@ -13,7 +13,7 @@ def generate_master_lams_file():
 	# to vary bond coefficients, for future proofing
 	pass
 
-def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, lp_stiff = [50], add_force = False, custom_masterfile = "", regenerate_stiff = False):
+def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, lp_stiff = [50], add_force = False, custom_masterfile = "", regenerate_stiff = False, use_long = False, **kwargs):
 	# generate many scripts
 	# run all in a master lammps file using the `include` command
 	# batches of 20 replicas
@@ -242,7 +242,10 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 			f.write("#SBATCH --cpus-per-task=1\n")
 			f.write(f"#SBATCH --array=0-{npara-1}\n")
 			f.write(f"#SBATCH --job-name={jobname}\n")
-			f.write(f"#SBATCH --partition=short\n")
+			if use_long:
+				f.write(f"#SBATCH --partition=long\n")
+			else:
+				f.write(f"#SBATCH --partition=short\n")
 
 			f.write(f"~/slurm-wd/{jobname}/run_${{SLURM_ARRAY_TASK_ID}}.sh")
 
@@ -268,8 +271,9 @@ if __name__ == "__main__":
 	ap.add_argument('-f', '--add_force', action = "store_true")
 	ap.add_argument('-m', '--masterfile', default = "")
 	ap.add_argument("-rgs", "--regenerate_stiff", action = "store_true")
+	ap.add_argument("-l", "--long", action = "store_true", help = "flag to use partition `long`")
 
 	ap.add_argument("job_name") # generate the SBATCH script
 	args = ap.parse_args()
 
-	main(args.local, args.slurm, args.job_name, args.nrep, args.npara, args.run_time, args.lp_stiff, args.add_force, args.masterfile, args.regenerate_stiff)
+	main(args.local, args.slurm, args.job_name, args.nrep, args.npara, args.run_time, args.lp_stiff, args.add_force, args.masterfile, args.regenerate_stiff, args.long)
