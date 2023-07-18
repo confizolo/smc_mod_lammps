@@ -267,7 +267,7 @@ if __name__ == "__main__":
 	ap.add_argument('-f', '--add_force', action = "store_true")
 	ap.add_argument('-m', '--masterfile', default = "")
 	ap.add_argument("-rgs", "--regenerate_stiff", action = "store_true")
-	ap.add_argument("-l", "--long", action = "store_true", help = "flag to use partition `long`")
+	ap.add_argument("-pl", "--long", action = "store_true", help = "flag to use partition `long`")
 
 	ap.add_argument("job_name") # generate the SBATCH script
 	args = ap.parse_args()
