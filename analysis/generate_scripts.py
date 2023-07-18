@@ -13,7 +13,7 @@ def generate_master_lams_file():
 	# to vary bond coefficients, for future proofing
 	pass
 
-def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, lp_stiff = [50], add_force = False, custom_masterfile = "", regenerate_stiff = False, use_long = False, **kwargs):
+def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, lp_stiff = [200], add_force = False, custom_masterfile = "", regenerate_stiff = False, use_long = False, **kwargs):
 	# generate many scripts
 	# run all in a master lammps file using the `include` command
 	# batches of 20 replicas
@@ -45,16 +45,13 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 	else:
 		path_str = "slurm"
 
-
 	# master_folder = '/home/zy/Documents/tap/smc-single-polymer/' 
 	# jobname = 'stiff-14-fix-edgecase'
 
-	start_delta = 20 # hard coded in the fix... 
-
 	# lp_stiff = [50]
-	n_stiff = [1, 2, 3, 7, 10, 14]
+	n_stiff = [1, 2, 3, 7, 10]
 
-	lp_list = [5] # list of persistence lengths to run through
+	lp_list = [20] # list of persistence lengths to run through
 
 	parameter_set = itertools.product(lp_list, lp_stiff, n_stiff)
 
@@ -66,7 +63,6 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 	# nrep = nrep # number of replicas to do
 	# npara = 16 # no. of parallel jobs
 	start_index = 0
-
 	#
 	#
 	#
