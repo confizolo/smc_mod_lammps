@@ -151,7 +151,7 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     // Define maximum movement of SMCs' hinge
     maxhdir = utils::inumeric(FLERR, arg[9], false, lmp);
     
-    if (maxhdir * maxadir >= 0) error -> all(FLERR, "Illegal fix smc command, hinge and must not have same direction");
+    if (maxhdir * maxadir > 0) error -> all(FLERR, "Illegal fix smc command, hinge and must not have same direction");
 
     // Define number of SMCs to deploy
     smcnum = utils::inumeric(FLERR, arg[10], false, lmp);
