@@ -5,7 +5,6 @@ def generate_stiff(sl: int, molecule_folder, molecule_file, force = False):
 	MOLECULE_FILE = molecule_file
 	NEW_ATOM = 4
 	NEW_ANGLE = 2
-	assert sl
 	# sl = 500 # this is variable
 
 	text = []
@@ -27,8 +26,8 @@ def generate_stiff(sl: int, molecule_folder, molecule_file, force = False):
 		return os.path.abspath(output_path)
 
 	# centre the stiff region
-	stiff_start = int((lpol - sl)/2 + 1)
-	stiff_end = int(stiff_start + sl)
+	stiff_start = int((lpol - sl)/2 + 1) # if sl = 0, this is 501
+	stiff_end = int(stiff_start + sl) # if sl = 0, this is 501
 
 	read_flag = False
 	atom_data = []
