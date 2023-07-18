@@ -49,7 +49,7 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 	# jobname = 'stiff-14-fix-edgecase'
 
 	# lp_stiff = [50]
-	n_stiff = [1, 2, 3, 7, 10]
+	n_stiff = [4, 8, 12, 28, 40]
 
 	lp_list = [20] # list of persistence lengths to run through
 
