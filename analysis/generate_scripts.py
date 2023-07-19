@@ -13,8 +13,19 @@ def generate_master_lams_file():
 	# to vary bond coefficients, for future proofing
 	pass
 
-def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, n_stiff = [4, 8, 12, 28, 40], lp_stiff = [200], add_force = False, custom_masterfile = "", regenerate_stiff = False, use_long = False, **kwargs):
-	# generate many scripts
+
+def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, n_stiff = [4, 8, 12, 28, 40], lp_stiff = [200], add_force = False, custom_masterfile = "", regenerate_stiff = False, use_long = False, equil = "", **kwargs):
+
+	def check_equil_in_folder(equil_folder, lp, lp_stiff, n_stiff, force):
+		target_file = "eq_lp{:d}-{:d}_nstiff-{:d}_f-{:.1f}.dat".format(lp, lp_stiff, n_stiff, force) 
+		target_path = os.path.join(equil_folder, target_file)
+
+		if os.path.exists(target_path):
+			return target_path
+		else:
+			raise Exception("Equilibrated molecule does not exist in specified folder")
+		
+
 	# run all in a master lammps file using the `include` command
 	# batches of 20 replicas
 
@@ -52,8 +63,9 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 	# n_stiff = [4, 8, 12, 28, 40]
 
 	lp_list = [20] # list of persistence lengths to run through
+	force_list = [0] # //TODO add as a commandline arg later
 
-	parameter_set = itertools.product(lp_list, lp_stiff, n_stiff)
+	parameter_set = itertools.product(lp_list, lp_stiff, n_stiff, force_list)
 
 	lpol = 1000 # length of polymer
 
@@ -115,10 +127,15 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 
 			_lp_stiff = p[1]
 			_n_stiff = p[2]
+			_force = p[3]
 
-			master_molecule_file = generate_stiff(_n_stiff, os.path.join(master_folder, "stiff_molecules"), default_paths[path_str]["molecule_file"], force = regenerate_stiff)
+			if len(equil):
+				master_molecule_file = check_equil_in_folder(equil, lp, _lp_stiff, _n_stiff, _force)
+			
+			else:
+				master_molecule_file = generate_stiff(_n_stiff, os.path.join(master_folder, "stiff_molecules"), default_paths[path_str]["molecule_file"], force = regenerate_stiff)
 
-			lp_folder = os.path.join(master_folder, jobname, f"N{lpol}", f"lp{lp:02}", f"lp-stiff{_lp_stiff:02}", f"n-stiff{_n_stiff:d}")
+			lp_folder = os.path.join(master_folder, jobname, f"N{lpol}", f"lp{lp:02}", f"lp-stiff{_lp_stiff:02}", f"n-stiff{_n_stiff:d}", f"force_{_force:.2f}")
 
 			_start_position = int((lpol - _n_stiff)/2 - 20) # ??? e.g. for 1000 - 100, start at 430, move until 450
 
@@ -247,7 +264,8 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 				f.write(f"#SBATCH --partition=short\n")
 
 			f.write(f"~/slurm-wd/{jobname}/run_${{SLURM_ARRAY_TASK_ID}}.sh")
-
+		
+		print(os.abspath(os.path.join(master_folder, jobname)))
 
 		# parameters:
 		# seed for langevin
@@ -272,8 +290,23 @@ if __name__ == "__main__":
 	ap.add_argument('-m', '--masterfile', default = "")
 	ap.add_argument("-rgs", "--regenerate_stiff", action = "store_true")
 	ap.add_argument("-pl", "--long", action = "store_true", help = "flag to use partition `long`")
+	
+	# for now, let this look from a folder of already equilibrated molecules
+
+	ap.add_argument("-eq", "--equilibrate", action = "store_true")
 
 	ap.add_argument("job_name") # generate the SBATCH script
 	args = ap.parse_args()
 
-	main(args.local, args.slurm, args.job_name, args.nrep, args.npara, args.run_time, args.n_stiff, args.lp_stiff, args.add_force, args.masterfile, args.regenerate_stiff, args.long)
+	main(args.local, args.slurm, args.job_name, 
+		nrep = args.nrep, 
+		npara = args.npara, 
+		run_duration = args.run_time, 
+		n_stiff = args.n_stiff, 
+		lp_stiff = args.lp_stiff, 
+		add_force = args.add_force, 
+		custom_masterfile = args.masterfile, 
+		regenerate_stiff = args.regenerate_stiff, 
+		use_long = args.long,
+		equil = args.equilibrate,
+	)
