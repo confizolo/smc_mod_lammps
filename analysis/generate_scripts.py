@@ -202,6 +202,9 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 					f.write("variable noiseseed equal {:d}\n".format((random.randint(1, 32768))))
 					f.write("variable smcseed equal {:d}\n".format((random.randint(1, 32768))))
 
+				with open(os.path.join(rep_folder, "start_pos.dat"), "w") as f:
+					f.write("{} {}".format(_start_position-2, _start_position))
+
 				shutil.copy(master_molecule_file, os.path.join(rep_folder, "molecule.dat"))
 				shutil.copy(master_script, os.path.join(rep_folder, "masterfile.lam"))
 
