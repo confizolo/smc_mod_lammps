@@ -265,7 +265,7 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 
 			f.write(f"~/slurm-wd/{jobname}/run_${{SLURM_ARRAY_TASK_ID}}.sh")
 		
-		print(os.abspath(os.path.join(master_folder, jobname)))
+		print(os.path.abspath(os.path.join(master_folder, jobname)))
 
 		# parameters:
 		# seed for langevin
