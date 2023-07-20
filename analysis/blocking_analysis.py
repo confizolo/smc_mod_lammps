@@ -42,6 +42,7 @@ def main(input_file):
 	global_max_time = df["time"].max()
 
 	for c, x in filter_generator(df, stiffs, get_lp_id = True):
+		print(c)
 		max_time = df.loc[x, "time"].max() 
 		if max_time < global_max_time: # handle crashed cases due to fene bond...
 			continue
