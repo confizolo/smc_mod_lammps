@@ -9,7 +9,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import argparse
 
-def parse(target_folders, output_folder):
+def parse(target_folders, output_file):
 
 	DEFAULT_RATE_SMC = 100
 	DEFAULT_RUN_DURATION = 100000
@@ -60,7 +60,7 @@ def parse(target_folders, output_folder):
 				_df[p] = params[p]
 			df = pd.concat([df, _df], ignore_index = True, sort = False)
 
-	df.to_csv(output_folder, index = False)
+	df.to_csv(output_file, index = False)
 
 def shift_start(df):
 	df = df.sort_values("time")
