@@ -19,7 +19,17 @@ def filter_generator(df, lps, get_lp_id = False):
 				yield (df["replica_id"] == rep) & lp_filter
 
 def main(input_file):
+	"""
+	blocking fraction starts from 100%
+
+	case: immediate jump over, t = 0 at the last timepoint before jumping 
+	case: stepwise reach stiff, t = 0 at reaching point before stiff
+	
+	want to shift the start time point
+	"""
+
 	lpol = 1000
+	timestep = 100
 
 	df = pd.read_csv(input_file)
 
@@ -29,35 +39,50 @@ def main(input_file):
 
 	output_df = pd.DataFrame(columns = ["n_stiff", "blocked"])
 
-	timestep = 10000
+	global_max_time = df["time"].max()
 
 	for c, x in filter_generator(df, stiffs, get_lp_id = True):
+		max_time = df.loc[x, "time"].max() 
+		if max_time < global_max_time: # handle crashed cases due to fene bond...
+			continue
 
 		_stiff = stiffs[c]
 		stiff_start = math.floor((lpol - _stiff)/2)
 		stiff_end = stiff_start + _stiff
 
-		max_time = df.loc[x, "time"].max() 
-
 		_df = {"n_stiff": [], "blocked": [], "reached": [], "time": []}
-		for t in range(timestep, max_time + 1, timestep):
 
+		flag_blocked = 1
+		flag_one_before = 0
+		time_zero_candidate = 0
+
+		for t in range(timestep, max_time + 1, timestep):
 			tf = (df["time"] == t)
 
-			if df.loc[x & tf, "x2"].values[0] > stiff_end:
-				_df["blocked"].append(0)
-			else:
-				_df["blocked"].append(1)
+			_x = df.loc[x & tf, "x2"].values[0] 
 
-			if df.loc[x & tf, "x2"].values[0] < stiff_start:
-				_df["reached"].append(0)
-			else:
-				_df["reached"].append(1)
+			if (_x == stiff_start - 1) and (not flag_one_before):
+				flag_one_before = 1 # stop considering
+				time_zero_candidate = t
 
+			if (_x > stiff_end):
+				if flag_blocked:
+					flag_blocked = 0
+				if (not flag_one_before): # jumped over entirely
+					prev_pos = df.loc[(x & df["time"] == last_time), "x2"].values[0]
+					time_zero_candidate = df.loc[(x & df["x2"] == prev_pos), "time"].values[0]
+					flag_one_before = 1 # stop considering
+
+			_df["blocked"].append(flag_blocked)
 			_df["n_stiff"].append(_stiff)
 			_df["time"].append(t)
+			_df["t_0"] = time_zero_candidate
+
+			last_time = t
 
 		_df = pd.DataFrame(_df)
+
+		_df = _df[_df["time"] >= time_zero_candidate]
 		output_df = pd.concat([output_df, _df], ignore_index = True)
 
 	output_df.to_csv(output_file, index = False)
@@ -163,6 +188,7 @@ if __name__ == "__main__":
 	ap.add_argument("input_file")
 	ap.add_argument("plot_folder")
 	ap.add_argument("-n", "--no_compute", action = "store_false", default = True)
+	ap.add_argument("-np", "--no_plot", action = "store_true")
 	ap.add_argument("-t", "--t_slice", type = int, default = -1)
 	ap.add_argument("-l", "--xlog", action = "store_true")
 	ap.add_argument("-id", "--uid", default = "")
@@ -174,4 +200,5 @@ if __name__ == "__main__":
 	else:
 		analysis_file = os.path.join(os.path.dirname(args.input_file), "processed_" + os.path.basename(args.input_file))
 
-	plot_blocking(analysis_file, args.plot_folder, args.t_slice, args.xlog, args.uid)
+	if not args.no_plot:
+		plot_blocking(analysis_file, args.plot_folder, args.t_slice, args.xlog, args.uid)
