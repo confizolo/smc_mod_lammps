@@ -17,7 +17,7 @@ def parse(target_folders, log_file):
 			# folder_id = target_folder.split("/")[-3] # manual, will break
 			# folder_list = [(f.path, f.name) for f in os.scandir(target_folder) if f.is_dir()]
 
-			rep_folder_list = [str(f.parent.absolute()) for f in Path(os.path.join(target_folder)).rglob("smc_pos.txt")]
+			rep_folder_list = [str(_.parent.absolute()) for _ in Path(os.path.join(target_folder)).rglob("smc_pos.txt")]
 
 			for _, rep in enumerate(rep_folder_list):
 				pos_file = os.path.join(rep, "smc_pos.txt")
