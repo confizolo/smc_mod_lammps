@@ -161,6 +161,7 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 			f.write("variable start_position equal {:d}\n".format(_start_position))
 			f.write("variable n_stiff equal {:d}\n".format(_n_stiff))
 			f.write("variable max_jump equal {:d}\n".format(int(lpol/2)))
+			f.write("variable init_force equal {:.2f}\n".format(_force))
 
 			if add_force:
 				f.write("group end1 id 1\n")

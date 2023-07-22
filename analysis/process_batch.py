@@ -24,7 +24,7 @@ def parse(target_folders, output_file):
 	# ]
 
 
-	df = pd.DataFrame(columns = ['persistence_length', 'replica_id', 'lpol', 'ratesmc', 'run_duration', 'time', 'smc_id', 'x1', 'x2', 'stiff_persistence_length', 'n_stiff', 'fixed_start_pos'])
+	df = pd.DataFrame(columns = ['persistence_length', 'replica_id', 'lpol', 'ratesmc', 'run_duration', 'time', 'smc_id', 'x1', 'x2', 'stiff_persistence_length', 'n_stiff', 'fixed_start_pos', 'init_force'])
 
 	for target_folder in target_folders:
 		# folder_id = target_folder.split("/")[-3] # manual, will break
@@ -42,6 +42,7 @@ def parse(target_folders, output_file):
 				"stiff_persistence_length": 0,
 				"n_stiff":0,
 				"start_position":0,
+				'init_force': 0,
 			}
 
 			# rep_id = (rep.split("/")[-1][3:])
