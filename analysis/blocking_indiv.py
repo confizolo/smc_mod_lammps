@@ -57,15 +57,14 @@ def parse(target_folders, output_file):
 						break 
 
 					try:
-						int(line[0])
-						int(line[3])
+						int(_line[0])
+						int(_line[3])
 					except:
-						print(line)
 						print("Error for ", rep)
 						break
 
-					_t = int(line[0])
-					_x = int(line[3])
+					_t = int(_line[0])
+					_x = int(_line[3])
 
 					if (_x == stiff_start - 1) and (not flag_one_before):
 						flag_one_before = 1 
