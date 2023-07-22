@@ -16,6 +16,7 @@ def parse(target_folders, output_file):
 		rep_folder_list = [str(f.parent.absolute()) for f in Path(os.path.join(target_folder)).rglob("smc_pos.txt")]
 
 		for _, rep in enumerate(rep_folder_list):
+			print(rep)
 			pos_file = os.path.join(rep, "smc_pos.txt")
 
 			params = {
@@ -54,6 +55,14 @@ def parse(target_folders, output_file):
 					_line = line.strip().split(" ")
 					if len(_line) < 4:
 						break 
+
+					try:
+						int(line[0])
+						int(line[3])
+					except:
+						print("Error for ", rep)
+						break
+
 					_t = int(line[0])
 					_x = int(line[3])
 
@@ -80,7 +89,6 @@ def parse(target_folders, output_file):
 			params["dt"] = dt
 
 			_df = pd.DataFrame([params])
-
 			df = pd.concat([df, _df], ignore_index = True)
 
 	df.to_csv(output_file, index = False)
