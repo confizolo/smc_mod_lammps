@@ -16,7 +16,6 @@ def parse(target_folders, output_file):
 		rep_folder_list = [str(f.parent.absolute()) for f in Path(os.path.join(target_folder)).rglob("smc_pos.txt")]
 
 		for _, rep in enumerate(rep_folder_list):
-			print(rep)
 			pos_file = os.path.join(rep, "smc_pos.txt")
 
 			params = {
@@ -66,7 +65,7 @@ def parse(target_folders, output_file):
 					_t = int(_line[0])
 					_x = int(_line[3])
 
-					if (_x == stiff_start - 1) and (not flag_one_before):
+					if (_x == stiff_start) and (not flag_one_before):
 						flag_one_before = 1 
 						# stop considering the time
 						t0_candidate = _t
