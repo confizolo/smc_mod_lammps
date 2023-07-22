@@ -60,6 +60,7 @@ def parse(target_folders, output_file):
 						int(line[0])
 						int(line[3])
 					except:
+						print(line)
 						print("Error for ", rep)
 						break
 
