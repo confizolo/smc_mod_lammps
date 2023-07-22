@@ -31,11 +31,11 @@ def parse(target_folders, log_file):
 if __name__ == "__main__":
 	ap = argparse.ArgumentParser()
 	ap.add_argument("-i","--input_folder", nargs = "+")
-	ap.add_argument("-o","--output_folder")
+	ap.add_argument("-o","--output_file")
 
 	args = ap.parse_args()
 	
-	parse(args.input_folder, args.output_folder)
+	parse(args.input_folder, args.output_file)
 
 
 

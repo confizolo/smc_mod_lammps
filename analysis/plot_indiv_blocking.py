@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import matplotlib
 
-def plot_blocking(input_file, plot_folder, ) :
+def plot_blocking(input_file, plot_folder, uid = "") :
 	df = pd.read_csv(input_file)
 
 	# first plot is blocking fraction conditioned on reaching
@@ -38,22 +38,35 @@ def plot_blocking(input_file, plot_folder, ) :
 		n_stiff = p[0]
 		force = p[1]
 
-		tdf = _df[_df["t0"] > 0]
 
-		if not len(tdf):
+		if not len(_df):
 			print("No data points for parameter set ", p)
 			continue
 
 		# we only need aggregate statistics, we don't care about individual behaviour / more conditions yet
-		dts = tdf["dt"].values
-		y = 1 - (np.arange(1, len(tdf) + 1)/len(tdf))
+		#
+		p_df = _df[_df["dt"] > 0]
+		dts = p_df["dt"].values
 
-		plt.plot(dts, y, color = colors[stiff_map[n_stiff]], label = str(n_stiff))
+		y = (-np.arange(1, len(p_df) + 1) + len(_df))/(len(_df))
 
-	plt.legend()
+		y = np.insert(y, 0, 1)
+		dts = np.insert(dts, 0, TIMESTEP)
+	
+		plt.plot(dts, y, color = colors[stiff_map[n_stiff]], label = str(n_stiff), lw = 2)
+		# axs[1].plot(n_stiff, len(tdf), color = colors[stiff_map[n_stiff]])
+	
+	plt.xscale("log")
+	plt.xlabel("Simulation time (log)")
+	plt.ylabel("Blocking fraction (conditioned on observation)")
+	plt.legend(title = "n_stiff", fancybox = True)
+
 	plt.gcf().set_size_inches((8.6, 6))
 	plt.tight_layout()
-	plt.show()
+
+	plot_path = os.path.join(plot_folder, os.path.basename(input_file) + uid + ".png")
+
+	plt.savefig(plot_path, dpi = 300)
 		
 
 
@@ -134,5 +147,6 @@ if __name__ == "__main__":
 	ap = argparse.ArgumentParser()
 	ap.add_argument("input_file")
 	ap.add_argument("plot_folder")
+
 	args = ap.parse_args()
 	plot_blocking(args.input_file, args.plot_folder)
