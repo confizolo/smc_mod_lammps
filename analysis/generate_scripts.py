@@ -14,7 +14,7 @@ def generate_master_lams_file():
 	pass
 
 
-def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, n_stiff = [4, 8, 12, 28, 40], lp_stiff = [200], add_force = False, custom_masterfile = "", regenerate_stiff = False, use_long = False, equil = "", **kwargs):
+def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, n_stiff = [4, 8, 12, 28, 40], lp_stiff = [200], add_force = False, custom_masterfile = "", regenerate_stiff = False, use_long = False, equil = "", start_shift = 20, **kwargs):
 
 	def check_equil_in_folder(equil_folder, lp, lp_stiff, n_stiff, force):
 		target_file = "eq_lp{:d}-{:d}_nstiff-{:d}_f-{:.2f}.dat".format(lp, lp_stiff, n_stiff, force) 
@@ -137,7 +137,7 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 
 			lp_folder = os.path.join(master_folder, jobname, f"N{lpol}", f"lp{lp:02}", f"lp-stiff{_lp_stiff:02}", f"n-stiff{_n_stiff:d}", f"force_{_force:.2f}")
 
-			_start_position = int((lpol - _n_stiff)/2 - 80) # ??? e.g. for 1000 - 100, start at 430, move until 450
+			_start_position = int((lpol - _n_stiff)/2 - start_shift) # ??? e.g. for 1000 - 100, start at 430, move until 450
 
 		# override:
 		if len(custom_masterfile):
@@ -295,6 +295,7 @@ if __name__ == "__main__":
 	# for now, let this look from a folder of already equilibrated molecules
 
 	ap.add_argument("-eq", "--equilibrate", type = str, help = "path to folder")
+	ap.add_argument("-ss", "--start_shift", type = int, default = 20)
 
 	ap.add_argument("job_name") # generate the SBATCH script
 	args = ap.parse_args()
@@ -310,4 +311,5 @@ if __name__ == "__main__":
 		regenerate_stiff = args.regenerate_stiff, 
 		use_long = args.long,
 		equil = args.equilibrate,
+		start_shift = args.start_shift,
 	)
