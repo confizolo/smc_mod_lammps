@@ -36,9 +36,9 @@ def main(input_folder, output_folder):
 				params[p] = _pdf.loc[p]["value"]
 		
 		output_filename = "eq_lp{:d}-{:d}_nstiff-{:d}_f-{:.2f}.dat".format(
-			params["persistence_length"],
-			params["stiff_persistence_length"],
-			params["n_stiff"],
+			int(params["persistence_length"]),
+			int(params["stiff_persistence_length"]),
+			int(params["n_stiff"]),
 			params["init_force"]
 		)
 		output_path = os.path.join(output_folder, output_filename)
