@@ -294,7 +294,7 @@ if __name__ == "__main__":
 	
 	# for now, let this look from a folder of already equilibrated molecules
 
-	ap.add_argument("-eq", "--equilibrate", type = str, help = "path to folder")
+	ap.add_argument("-eq", "--equilibrate", type = str, help = "path to folder", default = "")
 	ap.add_argument("-ss", "--start_shift", type = int, default = 20)
 
 	ap.add_argument("job_name") # generate the SBATCH script
