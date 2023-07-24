@@ -137,7 +137,7 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 
 			lp_folder = os.path.join(master_folder, jobname, f"N{lpol}", f"lp{lp:02}", f"lp-stiff{_lp_stiff:02}", f"n-stiff{_n_stiff:d}", f"force_{_force:.2f}")
 
-			_start_position = int((lpol - _n_stiff)/2 - 20) # ??? e.g. for 1000 - 100, start at 430, move until 450
+			_start_position = int((lpol - _n_stiff)/2 - 80) # ??? e.g. for 1000 - 100, start at 430, move until 450
 
 		# override:
 		if len(custom_masterfile):
