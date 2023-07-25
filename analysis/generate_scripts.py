@@ -208,7 +208,7 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 
 
 			for rep in range(nrep):
-				rep_folder = os.path.join(lp_folder, f"rep{rep}")
+				rep_folder = os.path.join(lp_folder, "rep{}".format(start_index + rep))
 				if not os.path.exists(rep_folder):
 					os.makedirs(rep_folder)
 
