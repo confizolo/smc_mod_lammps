@@ -14,7 +14,7 @@ def generate_master_lams_file():
 	pass
 
 
-def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, n_stiff = [4, 8, 12, 28, 40], lp_stiff = [200], add_force = False, custom_masterfile = "", regenerate_stiff = False, use_long = False, equil = "", start_shift = 20, **kwargs):
+def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, n_stiff = [4, 8, 12, 28, 40], lp_stiff = [200], add_force = False, custom_masterfile = "", regenerate_stiff = False, use_long = False, equil = "", start_shift = 20, start_index = 0, **kwargs):
 
 	def check_equil_in_folder(equil_folder, lp, lp_stiff, n_stiff, force):
 		target_file = "eq_lp{:d}-{:d}_nstiff-{:d}_f-{:.2f}.dat".format(lp, lp_stiff, n_stiff, force) 
@@ -74,7 +74,6 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 
 	# nrep = nrep # number of replicas to do
 	# npara = 16 # no. of parallel jobs
-	start_index = 0
 	#
 	#
 	#
@@ -296,6 +295,7 @@ if __name__ == "__main__":
 
 	ap.add_argument("-eq", "--equilibrate", type = str, help = "path to folder", default = "")
 	ap.add_argument("-ss", "--start_shift", type = int, default = 20)
+	ap.add_argument("-si", "--start_index", type = int, default = 0)
 
 	ap.add_argument("job_name") # generate the SBATCH script
 	args = ap.parse_args()
@@ -312,4 +312,5 @@ if __name__ == "__main__":
 		use_long = args.long,
 		equil = args.equilibrate,
 		start_shift = args.start_shift,
+		start_index = args.start_index,
 	)
