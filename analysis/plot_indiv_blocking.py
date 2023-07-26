@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import matplotlib
 
-def plot_blocking(input_file, plot_folder, uid = "") :
+def plot_blocking(input_file, plot_folder, plot_log = False, uid = "") :
 	df = pd.read_csv(input_file)
 
 	# first plot is blocking fraction conditioned on reaching
@@ -56,8 +56,11 @@ def plot_blocking(input_file, plot_folder, uid = "") :
 		plt.plot(dts, y, color = colors[stiff_map[n_stiff]], label = str(n_stiff), lw = 2)
 		# axs[1].plot(n_stiff, len(tdf), color = colors[stiff_map[n_stiff]])
 	
-	plt.xscale("log")
-	plt.xlabel("Simulation time (log)")
+	if plot_log:
+		plt.xscale("log")
+		plt.xlabel("Simulation time (log)")
+	else:
+		plt.xlabel("Simulation time")
 	plt.ylabel("Blocking fraction (conditioned on observation)")
 	plt.legend(title = "n_stiff", fancybox = True)
 
@@ -147,6 +150,8 @@ if __name__ == "__main__":
 	ap = argparse.ArgumentParser()
 	ap.add_argument("input_file")
 	ap.add_argument("plot_folder")
+	ap.add_argument("-l", "--log", action = "store_true")
+	ap.add_argument("-id", "--uid", default = "")
 
 	args = ap.parse_args()
-	plot_blocking(args.input_file, args.plot_folder)
+	plot_blocking(args.input_file, args.plot_folder, args.log, args.uid)

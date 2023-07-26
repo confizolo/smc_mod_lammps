@@ -14,7 +14,7 @@ def generate_master_lams_file():
 	pass
 
 
-def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, n_stiff = [4, 8, 12, 28, 40], lp_stiff = [200], add_force = False, custom_masterfile = "", regenerate_stiff = False, use_long = False, equil = "", start_shift = 20, start_index = 0, **kwargs):
+def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, n_stiff = [4, 8, 12, 28, 40], lp_list = [20], lp_stiff = [200], add_force = False, custom_masterfile = "", regenerate_stiff = False, use_long = False, equil = "", start_shift = 20, start_index = 0, **kwargs):
 
 	def check_equil_in_folder(equil_folder, lp, lp_stiff, n_stiff, force):
 		target_file = "eq_lp{:d}-{:d}_nstiff-{:d}_f-{:.2f}.dat".format(lp, lp_stiff, n_stiff, force) 
@@ -62,7 +62,6 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 	# lp_stiff = [50]
 	# n_stiff = [4, 8, 12, 28, 40]
 
-	lp_list = [20] # list of persistence lengths to run through
 	force_list = [0] # //TODO add as a commandline arg later
 
 	parameter_set = itertools.product(lp_list, lp_stiff, n_stiff, force_list)
@@ -284,7 +283,8 @@ if __name__ == "__main__":
 	ap.add_argument("-r", "--nrep", type = int, default = 96)
 	ap.add_argument("-p", "--npara", type = int, default = 8)
 	ap.add_argument("-t", "--run_time", type = int, default = 100000)
-	ap.add_argument("-lpst", "--lp_stiff", type = int, nargs = "+", default = [200])
+	ap.add_argument("-lpst", "--lp_stiff", type = int, nargs = "+", default = [200], help = "lp of stiff section bead")
+	ap.add_argument("-lp", "--lp", type = int, nargs = "+", default = [20], help = "lp of default bead")
 	ap.add_argument("-nst", "--n_stiff", type = int, nargs = "+", default = [4, 8, 12, 28, 40])
 	ap.add_argument('-f', '--add_force', action = "store_true")
 	ap.add_argument('-m', '--masterfile', default = "")
