@@ -306,6 +306,7 @@ if __name__ == "__main__":
 		run_duration = args.run_time, 
 		n_stiff = args.n_stiff, 
 		lp_stiff = args.lp_stiff, 
+		lp_list= args.lp,
 		add_force = args.add_force, 
 		custom_masterfile = args.masterfile, 
 		regenerate_stiff = args.regenerate_stiff, 
