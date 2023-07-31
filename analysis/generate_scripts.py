@@ -300,7 +300,7 @@ if __name__ == "__main__":
 	ap.add_argument("-ss", "--start_shift", type = int, default = 20)
 	ap.add_argument("-si", "--start_index", type = int, default = 0)
 
-	ap.add_argument("-relax", "--do_relax", action = "store_true")
+	ap.add_argument("-rx", "--do_relax", action = "store_true")
 
 	ap.add_argument("job_name") # generate the SBATCH script
 	args = ap.parse_args()
