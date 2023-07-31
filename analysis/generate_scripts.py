@@ -62,7 +62,7 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 	# lp_stiff = [50]
 	# n_stiff = [4, 8, 12, 28, 40]
 
-	force_list = [0] # //TODO add as a commandline arg later
+	# force_list = [0] # //TODO add as a commandline arg later
 
 	parameter_set = itertools.product(lp_list, lp_stiff, n_stiff, force_list)
 
@@ -291,7 +291,6 @@ if __name__ == "__main__":
 	ap.add_argument("-nst", "--n_stiff", type = int, nargs = "+", default = [4, 8, 12, 28, 40])
 
 	ap.add_argument("-ff", "--forces", type = float, nargs="+", default = [])
-
 	ap.add_argument('-f', '--add_force', action = "store_true")
 	ap.add_argument('-m', '--masterfile', default = "")
 	ap.add_argument("-rgs", "--regenerate_stiff", action = "store_true")
