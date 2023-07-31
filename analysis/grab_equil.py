@@ -9,7 +9,7 @@ def main(input_folder, output_folder, source_file_name = "equil.dat", ):
 	# only need one input folder since we assume that we equilibrate all at once
 
 	# search for equil.dat outputs
-	# assumes that only ONE replica per parameter set 
+	# assumes that only ONE replica per parameter set
 
 	# infer n_stiff and applied force
 	# infer lp and lpstiff
@@ -27,14 +27,14 @@ def main(input_folder, output_folder, source_file_name = "equil.dat", ):
 		}
 
 		# rep_id = (rep.split("/")[-1][3:])
-		params["replica_id"] = rep 
+		params["replica_id"] = rep
 
 		_pdf = pd.read_csv(os.path.join(rep, "parameters.dat"), sep = " ", header = None, names = [ "var_name" ,"value"], usecols = [1,3])
 		_pdf = _pdf.set_index("var_name")
 		for p in params:
 			if p in _pdf.index:
 				params[p] = _pdf.loc[p]["value"]
-		
+
 		output_filename = "eq_lp{:d}-{:d}_nstiff-{:d}_f-{:.2f}.dat".format(
 			int(params["persistence_length"]),
 			int(params["stiff_persistence_length"]),
@@ -51,5 +51,7 @@ if __name__ == "__main__":
 	ap = argparse.ArgumentParser()
 	ap.add_argument("input_folder")
 	ap.add_argument("output_folder")
+	ap.add_argument("-n", "--source_file_name", type = str, default = "equil.dat")
+
 	args = ap.parse_args()
-	main(args.input_folder, args.output_folder)
+	main(args.input_folder, args.output_folder, source_file_name = args.source_file_name)
