@@ -14,7 +14,7 @@ def generate_master_lams_file():
 	pass
 
 
-def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, n_stiff = [4, 8, 12, 28, 40], lp_list = [20], lp_stiff = [200], add_force = False, custom_masterfile = "", regenerate_stiff = False, use_long = False, equil = "", start_shift = 20, start_index = 0, **kwargs):
+def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, n_stiff = [4, 8, 12, 28, 40], lp_list = [20], lp_stiff = [200], add_force = False, custom_masterfile = "", regenerate_stiff = False, use_long = False, equil = "", start_shift = 20, start_index = 0, do_relax = False, **kwargs):
 
 	def check_equil_in_folder(equil_folder, lp, lp_stiff, n_stiff, force):
 		target_file = "eq_lp{:d}-{:d}_nstiff-{:d}_f-{:.2f}.dat".format(lp, lp_stiff, n_stiff, force) 
@@ -128,7 +128,10 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 			_force = p[3]
 
 			if len(equil):
-				master_molecule_file = check_equil_in_folder(equil, lp, _lp_stiff, _n_stiff, _force)
+				if do_relax:
+					master_molecule_file = check_equil_in_folder(equil, lp, _lp_stiff, _n_stiff, 0)
+				else:
+					master_molecule_file = check_equil_in_folder(equil, lp, _lp_stiff, _n_stiff, _force)
 			
 			else:
 				master_molecule_file = generate_stiff(_n_stiff, os.path.join(master_folder, "stiff_molecules"), default_paths[path_str]["molecule_file"], force = regenerate_stiff)
@@ -297,6 +300,8 @@ if __name__ == "__main__":
 	ap.add_argument("-ss", "--start_shift", type = int, default = 20)
 	ap.add_argument("-si", "--start_index", type = int, default = 0)
 
+	ap.add_argument("-relax", "--do_relax", action = "store_true")
+
 	ap.add_argument("job_name") # generate the SBATCH script
 	args = ap.parse_args()
 
@@ -314,4 +319,5 @@ if __name__ == "__main__":
 		equil = args.equilibrate,
 		start_shift = args.start_shift,
 		start_index = args.start_index,
+		do_relax = args.do_relax,
 	)
