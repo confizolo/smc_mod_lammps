@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 
-def main(input_folder, output_folder):
+def main(input_folder, output_folder, source_file_name = "equil.dat", ):
 	# only need one input folder since we assume that we equilibrate all at once
 
 	# search for equil.dat outputs
@@ -15,7 +15,7 @@ def main(input_folder, output_folder):
 	# infer lp and lpstiff
 	# /storage/scratch/v1zchoon/smc-single-polymer/equil_smallnstiff/N1000/lp20/lp-stiff200/n-stiff10/force_0.00/rep0/
 
-	rep_folder_list = [str(f.parent.absolute()) for f in Path(os.path.join(input_folder)).rglob("equil.dat")]
+	rep_folder_list = [str(f.parent.absolute()) for f in Path(os.path.join(input_folder)).rglob(source_file_name)]
 
 	for rep in rep_folder_list:
 
@@ -44,7 +44,7 @@ def main(input_folder, output_folder):
 		output_path = os.path.join(output_folder, output_filename)
 
 		print(output_filename)
-		shutil.copy(os.path.join(rep, "equil.dat"), output_path)
+		shutil.copy(os.path.join(rep, source_file_name), output_path)
 
 
 if __name__ == "__main__":
