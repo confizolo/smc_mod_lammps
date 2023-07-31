@@ -1,6 +1,6 @@
 import os
 
-def generate_stiff(sl: int, molecule_folder, molecule_file, force = False):
+def generate_stiff(sl: int, molecule_folder, molecule_file, force = False, extend_boundary = False):
 	# MOLECULE_FILE = "/home/zy/Documents/tap/smc-lammps/data/In_conf.Nb1000.RW4.fixed.dat"
 	MOLECULE_FILE = molecule_file
 	NEW_ATOM = 4
@@ -14,6 +14,10 @@ def generate_stiff(sl: int, molecule_folder, molecule_file, force = False):
 
 	text[3] = "4 atom types\n"
 	text[7] = "2 angle types\n"
+
+	if extend_boundary:
+		text[9] = "-600.00 600.00 xlo xhi\n"
+
 	text.insert(18, "4 1\n")
 
 	if not os.path.exists(molecule_folder):
