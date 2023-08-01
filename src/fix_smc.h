@@ -24,6 +24,8 @@ FixStyle(smc,FixSMC);
 #define LMP_FIX_SMC_H
 
 #include "fix.h"
+#include <string>
+#include <fstream>
 
 namespace LAMMPS_NS
 {
@@ -47,6 +49,8 @@ namespace LAMMPS_NS
       void load_smc(long);
       void place_smc(long, long, bool);
       void remove_smc(long, long);
+      void debug_pre(int);
+      void debug_post(int, bool, bool, bool, bool);
 
    private:
       long *anch, *hing, *av_list;
@@ -56,6 +60,7 @@ namespace LAMMPS_NS
       double prob, cutoff, kon, koff;
       double *xyzanch, *xyzhing;
       bool debug;
+      std::ofstream debugfile;
       class RanPark *random_equal;
       std::string fixFname;
    };
