@@ -99,20 +99,21 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     // 12. smctype: atom type of beads representing SMCs' ends
     // 13. smcbtype: SMCs' bond type after the first deployment
     // 14. smcbitype: SMCs' bond type at the first deployment
-    // 15. cutoff: distance cutoff for attempted movements (these are is accepted only if distance between new anchor and hinge is below the cutoff)
-    // 16. initmode: define initialisation mode of extruders:
+    // 15. cutoff: distance cutoff for attempted movements (these are accepted only if distance between new anchor and hinge is below the cutoff)
+    // 16. tancoff: tangent cutoff for attempted movements (these are accepted only if scalar product of the tangents is smaller than this value)
+    // 17. initmode: define initialisation mode of extruders:
     //    1.  "random": deploys randomly the SMCs
     //    2.  "distributed": assign at least one SMC per polymer and then distribute remaining randomly
     //    3.  "full-distributed": distributes evenly SMCs over the polymers
     //    4.  "fixed": assign SMCs' initial positions according to the filename defined at 19.
-    // 17. kon: probability to load a free extruder every nevery step
-    // 18. koff: probability to unload an extruder every nevery step
-    // 19. debug: activate debug mode with detailed report on log_fix_smc.txt
-    // 20. fixFname: file containing hinge and anchor position list separated by a space (optional)
-    // 20/21. blockbeads: type of beads that the extruder cannot grab, can be listed as an arbitrary long list (e.g.: 2 3 4 ...) (optional)
+    // 18. kon: probability to load a free extruder every nevery step
+    // 19. koff: probability to unload an extruder every nevery step
+    // 20. debug: activate debug mode with detailed report on log_fix_smc.txt
+    // 21. fixFname: file containing hinge and anchor position list separated by a space (optional)
+    // 21/22. blockbeads: type of beads that the extruder cannot grab, can be listed as an arbitrary long list (e.g.: 2 3 4 ...) (optional)
 
     // Check on the number of arguments given to the fix
-    if (narg < 18) error -> all(FLERR, "Illegal fix smc command");
+    if (narg < 19) error -> all(FLERR, "Illegal fix smc command");
 
     // Define attempt rate
     nevery = utils::inumeric(FLERR, arg[3], false, lmp);
@@ -173,40 +174,45 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     // Define distance cutoff to be checked before SMCs' movement
     cutoff = utils::numeric(FLERR, arg[14], false, lmp);
     if (cutoff < 0)
-      error -> all(FLERR, "Illegal fix smc command");
+      error -> all(FLERR, "Illegal cutoff value");
+
+    // Define distance cutoff to be checked before SMCs' movement
+    tancoff = utils::numeric(FLERR, arg[15], false, lmp);
+    if (abs(tancoff) > 1)
+      error -> all(FLERR, "Illegal tangent cutoff value");
 
     initmode = 0;
 
     // Define init mode for SMCs' deployment 
-    if (strcmp(arg[15], "random") == 0) {
+    if (strcmp(arg[16], "random") == 0) {
       initmode = 0;
-    } else if (strcmp(arg[15], "distributed") == 0) {
+    } else if (strcmp(arg[16], "distributed") == 0) {
       initmode = 1;
-    } else if (strcmp(arg[15], "full-distributed") == 0) {
+    } else if (strcmp(arg[16], "full-distributed") == 0) {
       initmode = 2;
-    } else if (strcmp(arg[15], "fixed") == 0) {
+    } else if (strcmp(arg[16], "fixed") == 0) {
       initmode = 3;
     } else {
       error -> all(FLERR, "Illegal fix smc command, initmode not present");
     }
 
     // Define loading probability of one SMC on simulation polymers
-    kon = utils::numeric(FLERR, arg[16], false, lmp);
+    kon = utils::numeric(FLERR, arg[17], false, lmp);
     if ((kon <= 0) || (kon>1))
       error -> all(FLERR, "Illegal fix smc command, kon is out of the interval (0,1]");
 
     // Define unloading probability of one SMC on simulation polymers
-    koff = utils::numeric(FLERR, arg[17], false, lmp);
+    koff = utils::numeric(FLERR, arg[18], false, lmp);
     if ((koff < 0) || (koff>1))
       error -> all(FLERR, "Illegal fix smc command, koff is out of the interval [0,1]");
 
-    debug = utils::numeric(FLERR, arg[18], false, lmp);
+    debug = utils::numeric(FLERR, arg[19], false, lmp);
 
-    int argnum = 19;
+    int argnum = 20;
 
     if (initmode == 3){  
-      if (narg<20) error -> all(FLERR, "Illegal fix smc command, koff is out of the interval [0,1]");
-      fixFname = arg[19];
+      if (narg<21) error -> all(FLERR, "Illegal fix smc command, koff is out of the interval [0,1]");
+      fixFname = arg[20];
       argnum += 1;
     }
 
@@ -219,9 +225,6 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     for (int i = argnum; i < narg; i++) {
       blockt[i-argnum] = utils::inumeric(FLERR, arg[i], false, lmp);;
     }
-
-    xyzanch = nullptr;
-    xyzhing = nullptr;
 
     anch = new long[smcnum];
     hing = new long[smcnum];
@@ -269,9 +272,6 @@ FixSMC::~FixSMC() {
   delete anch;
   delete hing;
   delete blockt;
-
-  memory -> destroy(xyzanch);
-  memory -> destroy(xyzhing);
   
   memory -> destroy(av_list);
 
@@ -295,7 +295,7 @@ void FixSMC::init() {
 
   if (debug) {
     debugfile.open("log_fix_smc.txt", std::fstream::trunc | std::fstream::out);
-    debugfile<<"#timestep,nproc,smcnum,prev_anch,prev_anch_type,prev_hing,prev_hing_type,anch,anch_type,hing,hing_type,rej_prob,rej_lim,rej_type,rej_dist"<<std::endl;
+    debugfile<<"#timestep,nproc,smcnum,prev_anch,prev_anch_type,prev_hing,prev_hing_type,anch,anch_type,hing,hing_type,rej_prob,rej_lim,rej_type,rej_dist,rej_tang,dist,tang"<<std::endl;
     debugfile.close();
   }
 
@@ -325,39 +325,32 @@ void FixSMC::post_integrate() {
       if ((anch[i]<0) || (hing[i]<0)) continue;
       debug_pre(i);
       place_smc(anch[i],hing[i], true);
-      debug_post(i,0,0,0,0);
+      debug_post(i,0,0,0,0,0,0,0);
       MPI_Barrier(world);
     }
 
     return;
 
   } 
-
+  
   // Propose movements with a fixed frequency
   else if (update -> ntimestep % nevery == 0){
 
     // If movement is disabled along both directions stop execution
     if ((maxhdir == 0) && (maxadir == 0)) return;
 
-    double * xyzanchtemp = nullptr;
-    double * xyzhingtemp = nullptr;
-
-    int * anchcount = nullptr;
-    int * hingcount = nullptr;
-
-    int * hingcounts = nullptr;
-    int * anchcounts = nullptr;
-
-    double unwrap[3];
-
     int mnew;
     int mannew;
 
+    double olddist = 0;
     double dist = 0;
+    double tan = 0;
+
+    std::array<double, 3> xyzanch, xyzhing, xyzoldanch, xyzoldhing; 
 
     auto histories = modify -> get_fix_by_style("BOND_HISTORY");
     int n_histories = histories.size();
-
+    
     int idnewhi;
     int idhi;
     int idnewan;
@@ -368,13 +361,13 @@ void FixSMC::post_integrate() {
 
     bool flag = 0;
     bool l_flag = 0;
+    bool t_flag = 0;
 
     int tempadir = 0;
     int temphdir = 0;
 
     double rand;
     
-
     for (int i = 0; i < smcnum; i++) {
 
       // Draw two random numbers for the unloading/loading
@@ -390,14 +383,14 @@ void FixSMC::post_integrate() {
           load_smc(i);
           debug_pre(i);
           place_smc(anch[i],hing[i],true);
-          debug_post(i,0,0,0,0);
+          debug_post(i,0,0,0,0,0,0,0);
         }
       }
       else{
         if (lrand < koff) {
           debug_pre(i);
           remove_smc(anch[i],hing[i]);
-          debug_post(i,0,0,0,0);
+          debug_post(i,0,0,0,0,0,0,0);
           anch[i]=-1;
           hing[i]=-1;
         }
@@ -415,7 +408,7 @@ void FixSMC::post_integrate() {
       // First accept the move with a certain probability prob
       if (rand > prob) {
         debug_pre(i);
-        debug_post(i,1,0,0,0);
+        debug_post(i,1,0,0,0,0,0,0);
         continue;
       }
 
@@ -473,7 +466,7 @@ void FixSMC::post_integrate() {
         // Skip movement if both the ends are not moving
         if ((tempadir == 0) && (temphdir == 0)) {
           debug_pre(i);
-          debug_post(i,1,0,0,0);
+          debug_post(i,1,0,0,0,0,0,0);
           continue;
         }
 
@@ -496,7 +489,7 @@ void FixSMC::post_integrate() {
         // Interrup internal l_sample loop
         if (flag) {
           debug_pre(i);
-          debug_post(i,0,1,0,0);
+          debug_post(i,0,1,0,0,0,0,0);
           continue;
         }
         
@@ -517,111 +510,69 @@ void FixSMC::post_integrate() {
         MPI_Barrier(world);
         if ((tempadir == 0) && (temphdir == 0)) {
           debug_pre(i);
-          debug_post(i,0,0,1,0);
+          debug_post(i,0,0,1,0,0,0,0);
           continue;
         }
 
-        memory -> destroy(xyzanchtemp);
-        memory -> create(xyzanchtemp, 3, "FixSMC::post_integrate()");
-        memory -> destroy(xyzhingtemp);
-        memory -> create(xyzhingtemp, 3, "FixSMC::post_integrate()");
-        memory -> destroy(anchcount);
-        memory -> create(anchcount, 1, "FixSMC::post_integrate()");
-        memory -> destroy(hingcount);
-        memory -> create(hingcount, 1, "FixSMC::post_integrate()");
+        xyzoldanch = compute_xyz(anch[i]);
+        xyzoldhing = compute_xyz(hing[i]);
+        xyzanch = compute_xyz(anch[i]+tempadir);
+        xyzhing = compute_xyz(hing[i]+temphdir);
 
-        anchcount[0] = 0;
-        hingcount[0] = 0;
-
-        xyzanchtemp[0] = 0;
-        xyzanchtemp[1] = 0;
-        xyzanchtemp[2] = 0;
-
-        xyzhingtemp[0] = 0;
-        xyzhingtemp[1] = 0;
-        xyzhingtemp[2] = 0;
-
-        memory -> destroy(xyzanch);
-        memory -> create(xyzanch, 3, "FixSMC::post_integrate()");
-        memory -> destroy(xyzhing);
-        memory -> create(xyzhing, 3, "FixSMC::post_integrate()");
-
-        // Computing the distance between the proposed beads' ends using xyz values from different processors
-        if (((mannew = idnewan) >= 0) && (idnewan < (atom -> nlocal))) {
-          domain -> unmap(atom -> x[mannew], atom -> image[mannew], unwrap);
-          xyzanchtemp[0] += unwrap[0];
-          xyzanchtemp[1] += unwrap[1];
-          xyzanchtemp[2] += unwrap[2];
-          anchcount[0] += 1;
-        }
-
-        if (((mnew = idnewhi) >= 0) && (idnewhi < (atom -> nlocal))) {
-          domain -> unmap(atom -> x[mnew], atom -> image[mnew], unwrap);
-
-          xyzhingtemp[0] += unwrap[0];
-          xyzhingtemp[1] += unwrap[1];
-          xyzhingtemp[2] += unwrap[2];
-          hingcount[0] += 1;
-        }
-
-        memory -> destroy(anchcounts);
-        memory -> create(anchcounts, 1, "FixSMC::post_integrate()");
-        memory -> destroy(hingcounts);
-        memory -> create(hingcounts, 1, "FixSMC::post_integrate()");
-
-        //MPI Barrier to avoid computational errors due to value collection
-        MPI_Barrier(world);
-
-        MPI_Allreduce(xyzanchtemp, xyzanch, 3, MPI_DOUBLE, MPI_SUM, world);
-        MPI_Allreduce(xyzhingtemp, xyzhing, 3, MPI_DOUBLE, MPI_SUM, world);
-        MPI_Allreduce(anchcount, anchcounts, 1, MPI_INT, MPI_SUM, world);
-        MPI_Allreduce(hingcount, hingcounts, 1, MPI_INT, MPI_SUM, world);
-
+        olddist = 0;
         dist = 0;
+        tan = 0;
 
+        //Compute distance and tangent on old and new set of beads
         for (int k = 0; k < 3; k++) {
-          xyzanch[k] = xyzanch[k] / anchcounts[0];
-          xyzhing[k] = xyzhing[k] / hingcounts[0];
+          olddist += (xyzoldanch[k] - xyzoldhing[k]) * (xyzoldanch[k] - xyzoldhing[k]);
           dist += (xyzanch[k] - xyzhing[k]) * (xyzanch[k] - xyzhing[k]);
+          tan += (xyzoldanch[k] - xyzoldhing[k]) * (xyzanch[k] - xyzhing[k]);
         }
+
+        olddist = sqrt(olddist);
+        dist = sqrt(dist);
+        tan /= (olddist*dist);
 
         // Barrier to check that each processor has defined correctly each smc
         MPI_Barrier(world);
 
+        l_flag = 0;
+        t_flag = 0;
+
         // Check if the distance is small enough to accept the movement
-        if (!(dist > cutoff * cutoff || (anchcounts[0] == 0) || (hingcounts[0] == 0))) {
-            l_flag = 1;
-            break;
+        if (dist > cutoff) continue;
+        l_flag = 1;
+
+        // Check if the product between the two tangents is smaller than a cutoff
+        if (tan < tancoff) {
+          t_flag = 1;
+          break;
         }
 
+        // Debug print if got rejected because of tangent product value
+        debug_pre(i);
+        debug_post(i,0,0,0,0,1,dist,tan);
     } 
 
     // Check to have found a suitable new pair of beads and move the bond
-    if (l_flag){
+    if (l_flag && t_flag){
       remove_smc(anch[i], hing[i]);
       place_smc(anch[i] + tempadir, hing[i] + temphdir, false);
       anch[i] += tempadir;
       hing[i] += temphdir;
       debug_pre(i);
-      debug_post(i,0,0,0,0);
+      debug_post(i,0,0,0,0,0,dist,tan);
     } 
-    else{
+    else if (!l_flag){
       debug_pre(i);
-      debug_post(i,0,0,0,1);
+      debug_post(i,0,0,0,1,0,dist,tan);
     }
+
     // Barrier to check that each processor has defined correctly each smc
     MPI_Barrier(world);
 
-  } 
-
-    memory -> destroy(xyzanch);
-    memory -> destroy(xyzhing);
-    memory -> destroy(xyzanchtemp);
-    memory -> destroy(xyzhingtemp);
-    memory -> destroy(anchcount);
-    memory -> destroy(hingcount);
-    memory -> destroy(hingcounts);
-    memory -> destroy(anchcounts);
+    } 
 
     return;
 
@@ -787,6 +738,9 @@ void FixSMC::load_smc(long i) {
   MPI_Barrier(world);
 }
 
+/*--------------*/
+/*Place i-th SMC*/
+/*--------------*/
 void FixSMC::place_smc(long a, long h, bool newsmc) {
   long mhi;
   long man;
@@ -827,6 +781,9 @@ void FixSMC::place_smc(long a, long h, bool newsmc) {
 
 }
 
+/*--------------*/
+/*Remove i-th SMC*/
+/*--------------*/
 void FixSMC::remove_smc(long a, long h) {
   long mhi;
   long man;
@@ -866,6 +823,48 @@ void FixSMC::remove_smc(long a, long h) {
   }
 }
 
+/*-----------------------------*/
+/*Compute position of i-th bead*/
+/*-----------------------------*/
+std::array<double, 3> FixSMC::compute_xyz(long b){
+
+    std::array<double,3> rtxyz, xyztemp;
+
+    int count;
+    int counts;
+
+    double unwrap[3];
+
+    count = 0;
+
+    xyztemp[0] = 0;
+    xyztemp[1] = 0;
+    xyztemp[2] = 0;
+
+    // Computing the distance between the proposed beads' ends using xyz values from different processors
+    if ((atom->map(b) >= 0) && (atom->map(b) < (atom -> nlocal))) {
+      domain -> unmap(atom -> x[atom->map(b)], atom -> image[atom->map(b)], unwrap);
+      xyztemp[0] += unwrap[0];
+      xyztemp[1] += unwrap[1];
+      xyztemp[2] += unwrap[2];
+      count += 1;
+    }
+    
+    //MPI Barrier to avoid computational errors due to value collection
+    MPI_Barrier(world);
+
+    MPI_Allreduce(&xyztemp, &rtxyz, 3, MPI_DOUBLE, MPI_SUM, world);
+    MPI_Allreduce(&count, &counts, 1, MPI_INT, MPI_SUM, world);
+
+    for (int k = 0; k < 3; k++)
+    {
+      if (counts>0) rtxyz[k] /= counts;
+      else rtxyz[k] = NAN;
+    }
+
+    return rtxyz;
+}
+
 /*-----------------------*/
 /*Pre change debug print*/
 /*-----------------------*/
@@ -896,7 +895,7 @@ void FixSMC::debug_pre(int i){
 /*-----------------------*/
 /*Post change debug print*/
 /*-----------------------*/
-void FixSMC::debug_post(int i, bool err1, bool err2, bool err3, bool err4){
+void FixSMC::debug_post(int i, bool err1, bool err2, bool err3, bool err4, bool err5, double dist, double tan){
   int flag1 = 1;
   int flag2 = 1;
 
@@ -909,7 +908,7 @@ void FixSMC::debug_post(int i, bool err1, bool err2, bool err3, bool err4){
     }
     if ((debug) && (atom->map(hing[i]) >= 0) && (comm->me==nproc)  && flag2) {
       debugfile.open("log_fix_smc.txt", std::ios_base::app);
-      debugfile<<hing[i]<<","<<atom->type[atom->map(hing[i])]<<","<<err1<<","<<err2<<","<<err3<<","<<err4<<std::endl;
+      debugfile<<hing[i]<<","<<atom->type[atom->map(hing[i])]<<","<<err1<<","<<err2<<","<<err3<<","<<err4<<","<<err5<<","<<dist<<","<<tan<<std::endl;
       debugfile.close();
       flag2 = 0;
     }

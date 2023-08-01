@@ -49,16 +49,16 @@ namespace LAMMPS_NS
       void load_smc(long);
       void place_smc(long, long, bool);
       void remove_smc(long, long);
+      std::array<double, 3> compute_xyz(long);
       void debug_pre(int);
-      void debug_post(int, bool, bool, bool, bool);
+      void debug_post(int, bool, bool, bool, bool, bool, double, double);
 
    private:
       long *anch, *hing, *av_list;
       long num_avl;
       int seed, smctype, smcbtype, smcbitype, lpol, maxadir, maxhdir, adir, hdir, smcnum, initmode, ring, nblockt;
       int *blockt;
-      double prob, cutoff, kon, koff;
-      double *xyzanch, *xyzhing;
+      double prob, cutoff, tancoff, kon, koff;
       bool debug;
       std::ofstream debugfile;
       class RanPark *random_equal;
