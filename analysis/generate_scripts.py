@@ -14,7 +14,7 @@ def generate_master_lams_file():
 	pass
 
 
-def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, n_stiff = [4, 8, 12, 28, 40], lp_list = [20], lp_stiff = [200], add_force = False, custom_masterfile = "", regenerate_stiff = False, use_long = False, equil = "", start_shift = 20, start_index = 0, do_relax = False, force_list = [], extend_boundary = False, **kwargs):
+def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, n_stiff = [4, 8, 12, 28, 40], lp_list = [20], lp_stiff = [200], add_force = False, custom_masterfile = "", regenerate_stiff = False, use_long = False, equil = "", start_shift = 20, start_index = 0, do_relax = False, force_list = [], extend_boundary = 0, **kwargs):
 
 	def check_equil_in_folder(equil_folder, lp, lp_stiff, n_stiff, force):
 		target_file = "eq_lp{:d}-{:d}_nstiff-{:d}_f-{:.2f}.dat".format(lp, lp_stiff, n_stiff, force)
@@ -303,7 +303,7 @@ if __name__ == "__main__":
 	ap.add_argument("-si", "--start_index", type = int, default = 0)
 
 	ap.add_argument("-rx", "--do_relax", action = "store_true")
-	ap.add_argument("-ex", "--extend_boundary", action = "store_true")
+	ap.add_argument("-ex", "--extend_boundary", type = float, default = 0.0)
 
 	ap.add_argument("job_name") # generate the SBATCH script
 	args = ap.parse_args()

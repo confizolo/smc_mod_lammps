@@ -16,7 +16,7 @@ def generate_stiff(sl: int, molecule_folder, molecule_file, force = False, exten
 	text[7] = "2 angle types\n"
 
 	if extend_boundary:
-		text[9] = "-600.00 600.00 xlo xhi\n"
+		text[9] = "-{:.2f} {:.2f} xlo xhi\n".format(extend_boundary, extend_boundary)
 
 	text.insert(18, "4 1\n")
 
