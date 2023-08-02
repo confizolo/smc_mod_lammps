@@ -26,14 +26,17 @@ fix "fixname" "considered beads" smc "par1" "par2" "par3" "par4" "par5" "par6" "
 9. smctype: atom type of beads representing SMCs' ends
 10. smcbtype: SMCs' bond type after the first deployment
 11. smcbitype: SMCs' bond type at the first deployment
-12. cutoff: distance cutoff for attempted movements (these are is accepted only if distance between new anchor and hinge is below the cutoff)
-13. initmode: define initialisation mode of extruders:
+12. cutoff: distance cutoff for attempted movements (these are accepted only if distance between new anchor and hinge is below the cutoff)
+13. tancoff: tangent cutoff for attempted movements (these are accepted only if scalar product of the tangents is smaller than this value)
+14.  initmode: define initialisation mode of extruders:
     1.  "random": deploys randomly the SMCs
     2.  "distributed": assign at least one SMC per polymer and then distribute remaining randomly
     3.  "full-distributed": distributes evenly SMCs over the polymers
-14. kon: probability to load a free extruder every nevery step
-15. koff: probability to unload an extruder every nevery step
-16. blockbeads: type of beads that the extruder cannot grab, can be listed as an arbitrary long list (e.g.: 2 3 4 ...)
+15.  kon: probability to load a free extruder every nevery step
+16.  koff: probability to unload an extruder every nevery step
+17.  debug: any number different from 0 activate debug mode with detailed report on log_fix_smc.txt
+18.  fixFname: file containing hinge and anchor position list separated by a space (optional)
+19.  blockbeads: type of beads that the extruder cannot grab, can be listed as an arbitrary long list (e.g.: 2 3 4 ...) (optional)
 
 # How to run Fix SMC Dump
 An additional fix was developed to allow dumping of LEF positions (two ends). It can be exploited using the following command:
