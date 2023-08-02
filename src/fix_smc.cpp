@@ -13,7 +13,7 @@
 ------------------------------------------------------------------------- */
 
 /* ----------------------------------------------------------------------
-   Contributing authors: Filippo Conforto
+   Contributing authors: Filippo Conforto (s2469797@ed.ac.uk), Choong Zheng Yang (zchoong001@e.ntu.edu.sg)
 ------------------------------------------------------------------------- */
 
 #include "fix_smc.h"
@@ -202,6 +202,7 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     int argnum = 18;
 
     if (initmode == 3){  
+      if (narg<19) error -> all(FLERR, "Illegal fix smc command, koff is out of the interval [0,1]");
       fixFname = arg[18];
       argnum += 1;
     }
