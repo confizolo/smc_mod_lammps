@@ -27,6 +27,7 @@ def parse(target_folders, output_file):
 				"n_stiff":0,
 				"start_position":0,
 				"force": 0,
+				"tangent_cutoff":0,
 			}
 
 			params["replica_id"] = rep 
