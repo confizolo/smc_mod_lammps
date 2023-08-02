@@ -1,3 +1,4 @@
+from pkgutil import extend_path
 import shutil
 import random
 import argparse
@@ -14,7 +15,7 @@ def generate_master_lams_file():
 	pass
 
 
-def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, n_stiff = [4, 8, 12, 28, 40], lp_list = [20], lp_stiff = [200], add_force = False, custom_masterfile = "", regenerate_stiff = False, use_long = False, equil = "", start_shift = 20, start_index = 0, do_relax = False, force_list = [], extend_boundary = 0, **kwargs):
+def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, n_stiff = [4, 8, 12, 28, 40], lp_list = [20], lp_stiff = [200], add_force = False, custom_masterfile = "", regenerate_stiff = False, use_long = False, equil = "", start_shift = 20, start_index = 0, do_relax = False, force_list = [], extend_boundary = 0, tangent_cutoff_list = [0], **kwargs):
 
 	def check_equil_in_folder(equil_folder, lp, lp_stiff, n_stiff, force):
 		target_file = "eq_lp{:d}-{:d}_nstiff-{:d}_f-{:.2f}.dat".format(lp, lp_stiff, n_stiff, force)
@@ -64,7 +65,7 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 
 	# force_list = [0] # //TODO add as a commandline arg later
 
-	parameter_set = itertools.product(lp_list, lp_stiff, n_stiff, force_list)
+	parameter_set = itertools.product(lp_list, lp_stiff, n_stiff, force_list, tangent_cutoff_list)
 
 	lpol = 1000 # length of polymer
 
@@ -126,6 +127,7 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 			_lp_stiff = p[1]
 			_n_stiff = p[2]
 			_force = p[3]
+			_tangent_cutoff = p[4]
 
 			if len(equil):
 				if do_relax:
@@ -163,6 +165,7 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 			f.write("variable n_stiff equal {:d}\n".format(_n_stiff))
 			f.write("variable max_jump equal {:d}\n".format(int(lpol/2)))
 			f.write("variable init_force equal {:.2f}\n".format(_force))
+			f.write("variable tangent_cutoff equal {:.2f}".format(_tangent_cutoff))
 
 			if add_force:
 				f.write("group end1 id 1\n")
@@ -291,6 +294,9 @@ if __name__ == "__main__":
 	ap.add_argument("-nst", "--n_stiff", type = int, nargs = "+", default = [4, 8, 12, 28, 40])
 
 	ap.add_argument("-ff", "--forces", type = float, nargs="+", default = [0])
+
+	ap.add_argument("-tan", "--tangent_cutoff", type = float, nargs="+", default = [0])
+
 	ap.add_argument('-f', '--add_force', action = "store_true")
 	ap.add_argument('-m', '--masterfile', default = "")
 	ap.add_argument("-rgs", "--regenerate_stiff", action = "store_true")
@@ -325,4 +331,5 @@ if __name__ == "__main__":
 		do_relax = args.do_relax,
 		force_list = args.forces,
 		extend_boundary=args.extend_boundary,
+		tangent_cutoff_list=args.tangent_cutoff,
 	)
