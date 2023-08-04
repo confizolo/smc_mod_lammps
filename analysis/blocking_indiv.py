@@ -47,6 +47,7 @@ def parse(target_folders, output_file, run_time = 100000):
 			t0_candidate = 0
 			flag_blocked = 1
 			flag_one_before = 0
+			flag_set = False
 			dt = -1
 
 			with open(pos_file) as f:
@@ -72,7 +73,7 @@ def parse(target_folders, output_file, run_time = 100000):
 						# stop considering the time
 						t0_candidate = _t
 
-					if (_x > stiff_end):
+					if (_x > stiff_end) and not flag_set:
 						if flag_blocked:
 							flag_blocked = 0
 						if (not flag_one_before): # jumped over entirely
@@ -81,6 +82,7 @@ def parse(target_folders, output_file, run_time = 100000):
 
 						dt = _t - t0_candidate
 
+						flag_set = True
 
 					if _x != last_x:
 						last_x = _x
