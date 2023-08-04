@@ -86,6 +86,8 @@ def parse(target_folders, output_file, run_time = 100000):
 					if _x != last_x:
 						last_x = _x
 						last_t = _t
+			if last_t < run_time:
+				continue
 			params["t0"] = t0_candidate
 			params["dt"] = dt
 
