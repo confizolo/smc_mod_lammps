@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import matplotlib
 
-def plot_blocking(input_file, plot_folder, plot_log = False, uid = "") :
+def plot_blocking(input_file, plot_folder, plot_log = False, uid = "", ) :
 	df = pd.read_csv(input_file)
 
 	# first plot is blocking fraction conditioned on reaching
@@ -34,37 +34,62 @@ def plot_blocking(input_file, plot_folder, plot_log = False, uid = "") :
 	df = df.sort_values(by = "dt")
 
 	# group by force too
-	for c, (p, _df) in enumerate(df.groupby(["n_stiff", "force"])):
-		n_stiff = p[0]
-		force = p[1]
+	n_cutoff = df["tangent_cutoff"].nunique()
 
+	fig, axs = plt.subplots(n_cutoff, 2)
 
-		if not len(_df):
-			print("No data points for parameter set ", p)
-			continue
+	for c, (cutoff, t_df) in enumerate(df.groupby("tangent_cutoff")):
+		for _, (p, _df) in enumerate(t_df.groupby(["n_stiff", "force",])):
+			n_stiff = p[0]
+			force = p[1]
 
-		# we only need aggregate statistics, we don't care about individual behaviour / more conditions yet
-		#
-		p_df = _df[_df["dt"] > 0]
-		dts = p_df["dt"].values
+			if not len(_df):
+				print("No data points for parameter set ", p)
+				continue
 
-		y = (-np.arange(1, len(p_df) + 1) + len(_df))/(len(_df))
+			# we only need aggregate statistics, we don't care about individual behaviour / more conditions yet
+			#
+			p_df = _df[_df["dt"] > 0]
+			dts = p_df["dt"].values
 
-		y = np.insert(y, 0, 1)
-		dts = np.insert(dts, 0, TIMESTEP)
-	
-		plt.plot(dts, y, color = colors[stiff_map[n_stiff]], label = str(n_stiff), lw = 2)
-		# axs[1].plot(n_stiff, len(tdf), color = colors[stiff_map[n_stiff]])
-	
-	if plot_log:
-		plt.xscale("log")
-		plt.xlabel("Simulation time (log)")
-	else:
-		plt.xlabel("Simulation time")
-	plt.ylabel("Blocking fraction (conditioned on observation)")
-	plt.legend(title = "n_stiff", fancybox = True)
+			y = (-np.arange(1, len(p_df) + 1) + len(_df))/(len(_df))
 
-	plt.gcf().set_size_inches((8.6, 6))
+			y = np.insert(y, 0, 1)
+			dts = np.insert(dts, 0, TIMESTEP)
+		
+			axs[c, 0].plot(dts, y, color = colors[stiff_map[n_stiff]], label = str(n_stiff), lw = 2)
+			# axs[1].plot(n_stiff, len(tdf), color = colors[stiff_map[n_stiff]])
+
+			reaching_cdf = _df.sort_values("t0")["t0"].values
+			print(reaching_cdf)
+			reaching_y = [_/len(reaching_cdf) for _ in range(len(reaching_cdf))]
+
+			axs[c, 1].plot(reaching_cdf, reaching_y, color = colors[stiff_map[n_stiff]], label = str(n_stiff), lw = 2, alpha = 0.8)
+
+		axs[c, 0].set_title("tangent cutoff = {:.2f}".format(cutoff))
+		axs[c, 1].set_title("tangent cutoff = {:.2f}".format(cutoff))
+		
+		if plot_log:
+			axs[c, 0].set_xscale("log")
+			axs[c, 0].set_xlabel("Simulation time (log)")
+			axs[c, 1].set_xscale("log")
+			axs[c, 1].set_xlabel("Simulation time (log)")
+		else:
+			axs[c, 0].set_xlabel("Simulation time")
+			axs[c, 1].set_xlabel("Simulation time")
+
+		axs[c, 0].set_ylabel("Blocking fraction (expt)")
+		axs[c, 0].legend(title = "n_stiff", fancybox = True)
+
+		axs[c, 1].set_ylabel("LEF reaching stiff CDF")
+		axs[c, 1].legend(title = "n_stiff", fancybox = True)
+
+		# axs[c, 0].set_xlim(0, MAX_TIME)
+		axs[c, 0].set_ylim(0, 1)
+		# axs[c, 1].set_xlim(0, MAX_TIME)
+		axs[c, 1].set_ylim(0, 1)
+
+	fig.set_size_inches((16, 3 * n_cutoff))
 	plt.tight_layout()
 
 	plot_path = os.path.join(plot_folder, os.path.basename(input_file) + uid + ".png")
@@ -154,4 +179,4 @@ if __name__ == "__main__":
 	ap.add_argument("-id", "--uid", default = "")
 
 	args = ap.parse_args()
-	plot_blocking(args.input_file, args.plot_folder, args.log, args.uid)
+	plot_blocking(args.input_file, args.plot_folder, args.log, args.uid, )

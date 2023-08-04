@@ -5,10 +5,10 @@ from pathlib import Path
 import argparse
 import pandas as pd
 
-def parse(target_folders, output_file):
+def parse(target_folders, output_file, run_time = 100000):
 
 	DEFAULT_RATE_SMC = 100
-	DEFAULT_RUN_DURATION = 100000
+	DEFAULT_RUN_DURATION = run_time
 	DEFAULT_LPOL = 1000
 
 	df = pd.DataFrame()
@@ -99,7 +99,8 @@ if __name__ == "__main__":
 	ap = argparse.ArgumentParser()
 	ap.add_argument("-i","--input_folder", nargs = "+")
 	ap.add_argument("-o","--output_file")
+	ap.add_argument("-t", "--time", type = int, default = 100000)
 
 	args = ap.parse_args()
 	
-	parse(args.input_folder, args.output_file)
+	parse(args.input_folder, args.output_file, args.time)
