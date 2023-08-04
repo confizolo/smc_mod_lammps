@@ -81,7 +81,6 @@ def parse(target_folders, output_file, run_time = 100000):
 
 						dt = _t - t0_candidate
 
-						break
 
 					if _x != last_x:
 						last_x = _x

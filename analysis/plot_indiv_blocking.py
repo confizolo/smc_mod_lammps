@@ -61,7 +61,6 @@ def plot_blocking(input_file, plot_folder, plot_log = False, uid = "", ) :
 			# axs[1].plot(n_stiff, len(tdf), color = colors[stiff_map[n_stiff]])
 
 			reaching_cdf = _df.sort_values("t0")["t0"].values
-			print(reaching_cdf)
 			reaching_y = [_/len(reaching_cdf) for _ in range(len(reaching_cdf))]
 
 			axs[c, 1].plot(reaching_cdf, reaching_y, color = colors[stiff_map[n_stiff]], label = str(n_stiff), lw = 2, alpha = 0.8)
