@@ -1,6 +1,6 @@
 import os
 
-def generate_stiff(sl: int, molecule_folder, molecule_file, force = False, extend_boundary = False, pattern = "", uid = ""):
+def generate_stiff(sl: int, molecule_folder, molecule_file, force = False, extend_boundary = False, pattern = "",):
 	"""
 	format: 1.1 1 bead, 1 blank
 	count such that  there is one bead at the end (fencepost counting)

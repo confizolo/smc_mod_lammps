@@ -15,7 +15,7 @@ def generate_master_lams_file():
 	pass
 
 
-def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, n_stiff = [4, 8, 12, 28, 40], lp_list = [20], lp_stiff = [200], add_force = False, custom_masterfile = "", regenerate_stiff = False, use_long = False, equil = "", start_shift = 20, start_index = 0, do_relax = False, force_list = [], extend_boundary = 0, tangent_cutoff_list = [0], **kwargs):
+def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, n_stiff = [4, 8, 12, 28, 40], lp_list = [20], lp_stiff = [200], add_force = False, custom_masterfile = "", regenerate_stiff = False, use_long = False, equil = "", start_shift = 20, start_index = 0, do_relax = False, force_list = [], extend_boundary = 0, tangent_cutoff_list = [0], patterns = ["1.0"], **kwargs):
 
 	def check_equil_in_folder(equil_folder, lp, lp_stiff, n_stiff, force):
 		target_file = "eq_lp{:d}-{:d}_nstiff-{:d}_f-{:.2f}.dat".format(lp, lp_stiff, n_stiff, force)
@@ -65,7 +65,7 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 
 	# force_list = [0] # //TODO add as a commandline arg later
 
-	parameter_set = itertools.product(lp_list, lp_stiff, n_stiff, force_list, tangent_cutoff_list)
+	parameter_set = itertools.product(lp_list, lp_stiff, n_stiff, force_list, tangent_cutoff_list, patterns)
 
 	lpol = 1000 # length of polymer
 
@@ -128,6 +128,7 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 			_n_stiff = p[2]
 			_force = p[3]
 			_tangent_cutoff = p[4]
+			_pattern = p[5]
 
 			if len(equil):
 				if do_relax:
@@ -136,9 +137,9 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 					master_molecule_file = check_equil_in_folder(equil, lp, _lp_stiff, _n_stiff, _force)
 
 			else:
-				master_molecule_file = generate_stiff(_n_stiff, os.path.join(master_folder, "stiff_molecules"), default_paths[path_str]["molecule_file"], force = regenerate_stiff, extend_boundary=extend_boundary)
+				master_molecule_file = generate_stiff(_n_stiff, os.path.join(master_folder, "stiff_molecules"), default_paths[path_str]["molecule_file"], force = regenerate_stiff, extend_boundary=extend_boundary, pattern = _pattern)
 
-			lp_folder = os.path.join(master_folder, jobname, f"N{lpol}", f"lp{lp:02}", f"lp-stiff{_lp_stiff:02}", f"n-stiff{_n_stiff:d}", f"force_{_force:.2f}", f"tan_{_tangent_cutoff:.2f}")
+			lp_folder = os.path.join(master_folder, jobname, f"N{lpol}", f"lp{lp:02}", f"lp-stiff{_lp_stiff:02}", f"n-stiff{_n_stiff:d}", f"force_{_force:.2f}", f"tan_{_tangent_cutoff:.2f}", f"pat_{_pattern}")
 
 			_start_position = int((lpol - _n_stiff)/2 - start_shift) # ??? e.g. for 1000 - 100, start at 430, move until 450
 
@@ -311,6 +312,8 @@ if __name__ == "__main__":
 	ap.add_argument("-rx", "--do_relax", action = "store_true")
 	ap.add_argument("-ex", "--extend_boundary", type = float, default = 0.0)
 
+	ap.add_argument("-pat", "--patterns", nargs = "+", type = str, default = ["1.0"])
+
 	ap.add_argument("job_name") # generate the SBATCH script
 	args = ap.parse_args()
 
@@ -332,4 +335,5 @@ if __name__ == "__main__":
 		force_list = args.forces,
 		extend_boundary=args.extend_boundary,
 		tangent_cutoff_list=args.tangent_cutoff,
+		patterns = args.patterns,
 	)
