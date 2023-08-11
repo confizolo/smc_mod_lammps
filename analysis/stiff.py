@@ -87,7 +87,7 @@ def generate_stiff(sl: int, molecule_folder, molecule_file, force = False, exten
 	for c, line in enumerate(text):
 		if read_flag and len(line.strip()):
 			_data = line.split(" ")
-			if all([int(_data[j].strip()) in range(stiff_start, stiff_end) for j in [-1, -2, -3]]):
+			if all([build_str[int(_data[j].strip())-stiff_start] == "o" for j in [-1, -2, -3]]):
 				_data[1] = str(NEW_ANGLE)
 			angle_data.append(" ".join(_data))
 
