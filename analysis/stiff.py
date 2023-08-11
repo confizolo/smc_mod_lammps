@@ -12,7 +12,7 @@ def generate_stiff(sl: int, molecule_folder, molecule_file, force = False, exten
 
 		_sl = sl + ((sl/bunch)-1) * gap
 		_start = int((lpol - _sl)/2 + 1) # if sl = 0, this is 501
-		_end = int(stiff_start + _sl) # if sl = 0, this is 501
+		_end = int(_start + _sl) # if sl = 0, this is 501
 
 		_build_str = ""
 
