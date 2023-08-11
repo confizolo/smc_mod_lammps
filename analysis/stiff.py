@@ -53,7 +53,7 @@ def generate_stiff(sl: int, molecule_folder, molecule_file, force = False, exten
 
 	# centre the stiff region
 	if len(pattern):
-		stiff_start, stiff_end, build_str = parse_pattern(pattern)	
+		stiff_start, stiff_end, build_str = parse_pattern(sl, pattern)	
 
 	else:
 		stiff_start = int((lpol - sl)/2 + 1) # if sl = 0, this is 501
