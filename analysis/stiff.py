@@ -1,6 +1,28 @@
 import os
 
-def generate_stiff(sl: int, molecule_folder, molecule_file, force = False, extend_boundary = False):
+def generate_stiff(sl: int, molecule_folder, molecule_file, force = False, extend_boundary = False, pattern = "", uid = ""):
+	"""
+	format: 1.1 1 bead, 1 blank
+	count such that  there is one bead at the end (fencepost counting)
+	"""
+
+	def parse_pattern(sl, x):
+		bunch, gap = x.split(".")
+		bunch, gap = int(bunch), int(gap)
+
+		_sl = sl + ((sl/bunch)-1) * gap
+		_start = int((lpol - _sl)/2 + 1) # if sl = 0, this is 501
+		_end = int(stiff_start + _sl) # if sl = 0, this is 501
+
+		_build_str = ""
+
+		while _sl > 0:
+			_build_str += "o" * bunch
+			_sl -= bunch
+			_build_str += "x" * gap
+
+		return _start, _end, _build_str
+	
 	# MOLECULE_FILE = "/home/zy/Documents/tap/smc-lammps/data/In_conf.Nb1000.RW4.fixed.dat"
 	MOLECULE_FILE = molecule_file
 	NEW_ATOM = 4
@@ -23,15 +45,20 @@ def generate_stiff(sl: int, molecule_folder, molecule_file, force = False, exten
 	if not os.path.exists(molecule_folder):
 		os.makedirs(molecule_folder)
 
-	output_path = os.path.join(molecule_folder, f"stiff_{sl}.dat")
+	output_path = os.path.join(molecule_folder, f"stiff_{sl}{pattern}.dat")
 	lpol = 1000
 
 	if os.path.exists(output_path) and not force:
 		return os.path.abspath(output_path)
 
 	# centre the stiff region
-	stiff_start = int((lpol - sl)/2 + 1) # if sl = 0, this is 501
-	stiff_end = int(stiff_start + sl) # if sl = 0, this is 501
+	if len(sl, pattern):
+		stiff_start, stiff_end, build_str = parse_pattern(pattern)	
+
+	else:
+		stiff_start = int((lpol - sl)/2 + 1) # if sl = 0, this is 501
+		stiff_end = int(stiff_start + sl) # if sl = 0, this is 501
+		build_str = "o" * sl
 
 	read_flag = False
 	atom_data = []
@@ -44,8 +71,10 @@ def generate_stiff(sl: int, molecule_folder, molecule_file, force = False, exten
 
 		if read_flag and len(line.strip()):
 			_data = line.split(" ")
-			if int(_data[0]) in range(stiff_start, stiff_end):
-				_data[2] = str(NEW_ATOM) 
+			_id = int(_data[0])
+			if _id in range(stiff_start, stiff_end):
+				if build_str[_id - stiff_start] == "o":
+					_data[2] = str(NEW_ATOM) 
 
 			atom_data.append(" ".join(_data))
 

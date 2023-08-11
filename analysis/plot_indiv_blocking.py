@@ -73,9 +73,13 @@ def plot_blocking(input_file, plot_folder, plot_log = False, uid = "", ) :
 			axs[c, 0].set_xlabel("Simulation time (log)")
 			axs[c, 1].set_xscale("log")
 			axs[c, 1].set_xlabel("Simulation time (log)")
+			axs[c, 0].set_xlim(TIMESTEP, MAX_TIME)
+			axs[c, 1].set_xlim(TIMESTEP, MAX_TIME)
 		else:
 			axs[c, 0].set_xlabel("Simulation time")
 			axs[c, 1].set_xlabel("Simulation time")
+			axs[c, 0].set_xlim(0, MAX_TIME)
+			axs[c, 1].set_xlim(0, MAX_TIME)
 
 		axs[c, 0].set_ylabel("Blocking fraction (expt)")
 		axs[c, 0].legend(title = "n_stiff", fancybox = True)
@@ -83,9 +87,7 @@ def plot_blocking(input_file, plot_folder, plot_log = False, uid = "", ) :
 		axs[c, 1].set_ylabel("LEF reaching stiff CDF")
 		axs[c, 1].legend(title = "n_stiff", fancybox = True)
 
-		# axs[c, 0].set_xlim(0, MAX_TIME)
 		axs[c, 0].set_ylim(0, 1)
-		# axs[c, 1].set_xlim(0, MAX_TIME)
 		axs[c, 1].set_ylim(0, 1)
 
 	fig.set_size_inches((16, 3 * n_cutoff))
