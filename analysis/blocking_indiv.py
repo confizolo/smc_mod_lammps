@@ -26,7 +26,7 @@ def parse(target_folders, output_file, run_time = 100000):
 				"stiff_persistence_length": 0,
 				"n_stiff":0,
 				"start_position":0,
-				"force": 0,
+				"init_force": 0,
 				"tangent_cutoff":0,
 			}
 

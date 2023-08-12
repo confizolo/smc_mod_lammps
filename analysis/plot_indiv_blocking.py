@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import matplotlib
 
-def plot_blocking(input_file, plot_folder, plot_log = False, uid = "", ) :
+def plot_blocking(input_file, plot_folder, plot_log = False, uid = "", compare_key = "") :
 	df = pd.read_csv(input_file)
 
 	# first plot is blocking fraction conditioned on reaching
@@ -23,25 +23,26 @@ def plot_blocking(input_file, plot_folder, plot_log = False, uid = "", ) :
 
 	stiff_map = {nstiff[x]:x for x in range(len(nstiff))}
 
-	slice_y = []
-	slice_yerr = []
-	slice_n = []
-	slice_s = []
-
 	MAX_TIME = df["run_duration"].values[0]
 	TIMESTEP = df["ratesmc"].values[0]
+
+	df = df[df["tangent_cutoff"]!=0]
+	
+	if len(compare_key):
+		n_compare = df[compare_key].nunique()
+		fig, axs = plt.subplots(n_compare, 2)
+	else:
+		n_compare = 1
+		fig, axs = plt.subplots(2)
 
 	df = df.sort_values(by = "dt")
 
 	# group by force too
-	n_cutoff = df["tangent_cutoff"].nunique()
 
-	fig, axs = plt.subplots(n_cutoff, 2)
 
-	for c, (cutoff, t_df) in enumerate(df.groupby("tangent_cutoff")):
-		for _, (p, _df) in enumerate(t_df.groupby(["n_stiff", "force",])):
+	for c, (c_key, t_df) in enumerate(df.groupby(compare_key)):
+		for _, (p, _df) in enumerate(t_df.groupby(["n_stiff"])):
 			n_stiff = p[0]
-			force = p[1]
 
 			if not len(_df):
 				print("No data points for parameter set ", p)
@@ -57,40 +58,47 @@ def plot_blocking(input_file, plot_folder, plot_log = False, uid = "", ) :
 			y = np.insert(y, 0, 1)
 			dts = np.insert(dts, 0, TIMESTEP)
 		
-			axs[c, 0].plot(dts, y, color = colors[stiff_map[n_stiff]], label = str(n_stiff), lw = 2)
+			
+			if len(compare_key):
+				idx_0 = (c, 0)
+				idx_1 = (c, 1)
+			else:
+				idx_0 = 0
+				idx_1 = 1
+
+			axs[idx_0].plot(dts, y, color = colors[stiff_map[n_stiff]], label = str(n_stiff), lw = 2)
 			# axs[1].plot(n_stiff, len(tdf), color = colors[stiff_map[n_stiff]])
 
 			reaching_cdf = _df.sort_values("t0")["t0"].values
 			reaching_y = [_/len(reaching_cdf) for _ in range(len(reaching_cdf))]
 
-			axs[c, 1].plot(reaching_cdf, reaching_y, color = colors[stiff_map[n_stiff]], label = str(n_stiff), lw = 2, alpha = 0.8)
+			axs[idx_1].plot(reaching_cdf, reaching_y, color = colors[stiff_map[n_stiff]], label = str(n_stiff), lw = 2, alpha = 0.8)
 
-		axs[c, 0].set_title("tangent cutoff = {:.2f}".format(cutoff))
-		axs[c, 1].set_title("tangent cutoff = {:.2f}".format(cutoff))
-		
+		axs[idx_0].set_title("{} = {:.2f}".format(compare_key, c_key))
+		axs[idx_1].set_title("{} = {:.2f}".format(compare_key, c_key))
 		if plot_log:
-			axs[c, 0].set_xscale("log")
-			axs[c, 0].set_xlabel("Simulation time (log)")
-			axs[c, 1].set_xscale("log")
-			axs[c, 1].set_xlabel("Simulation time (log)")
-			axs[c, 0].set_xlim(TIMESTEP, MAX_TIME)
-			axs[c, 1].set_xlim(TIMESTEP, MAX_TIME)
+			axs[idx_0].set_xscale("log")
+			axs[idx_0].set_xlabel("Simulation time (log)")
+			axs[idx_1].set_xscale("log")
+			axs[idx_1].set_xlabel("Simulation time (log)")
+			axs[idx_0].set_xlim(TIMESTEP, MAX_TIME)
+			axs[idx_1].set_xlim(TIMESTEP, MAX_TIME)
 		else:
-			axs[c, 0].set_xlabel("Simulation time")
-			axs[c, 1].set_xlabel("Simulation time")
-			axs[c, 0].set_xlim(0, MAX_TIME)
-			axs[c, 1].set_xlim(0, MAX_TIME)
+			axs[idx_0].set_xlabel("Simulation time")
+			axs[idx_1].set_xlabel("Simulation time")
+			axs[idx_0].set_xlim(0, MAX_TIME)
+			axs[idx_1].set_xlim(0, MAX_TIME)
 
-		axs[c, 0].set_ylabel("Blocking fraction (expt)")
-		axs[c, 0].legend(title = "n_stiff", fancybox = True)
+		axs[idx_0].set_ylabel("Blocking fraction (expt)")
+		axs[idx_0].legend(title = "n_stiff", fancybox = True)
 
-		axs[c, 1].set_ylabel("LEF reaching stiff CDF")
-		axs[c, 1].legend(title = "n_stiff", fancybox = True)
+		axs[idx_1].set_ylabel("LEF reaching stiff CDF")
+		axs[idx_1].legend(title = "n_stiff", fancybox = True)
 
-		axs[c, 0].set_ylim(0, 1)
-		axs[c, 1].set_ylim(0, 1)
+		axs[idx_0].set_ylim(0, 1)
+		axs[idx_1].set_ylim(0, 1)
 
-	fig.set_size_inches((16, 3 * n_cutoff))
+	fig.set_size_inches((16, 3 * n_compare))
 	plt.tight_layout()
 
 	plot_path = os.path.join(plot_folder, os.path.basename(input_file) + uid + ".png")
@@ -176,8 +184,9 @@ if __name__ == "__main__":
 	ap = argparse.ArgumentParser()
 	ap.add_argument("input_file")
 	ap.add_argument("plot_folder")
+	ap.add_argument("-c", "--compare_key", default = "")
 	ap.add_argument("-l", "--log", action = "store_true")
 	ap.add_argument("-id", "--uid", default = "")
 
 	args = ap.parse_args()
-	plot_blocking(args.input_file, args.plot_folder, args.log, args.uid, )
+	plot_blocking(args.input_file, args.plot_folder, args.log, args.uid, args.compare_key)

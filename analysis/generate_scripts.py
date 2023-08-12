@@ -296,7 +296,7 @@ if __name__ == "__main__":
 
 	ap.add_argument("-ff", "--forces", type = float, nargs="+", default = [0])
 
-	ap.add_argument("-tan", "--tangent_cutoff", type = float, nargs="+", default = [0])
+	ap.add_argument("-tan", "--tangent_cutoff", type = float, nargs="+", default = [1.0])
 
 	ap.add_argument('-f', '--add_force', action = "store_true")
 	ap.add_argument('-m', '--masterfile', default = "")
