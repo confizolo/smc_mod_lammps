@@ -5,19 +5,15 @@ import numpy as np
 import pandas as pd
 import matplotlib
 
-def plot_blocking(input_file, plot_folder, plot_log = False, uid = "", compare_key = "") :
+def plot_blocking(input_file, plot_folder, plot_log = False, uid = "", compare_key = "", other_key = "n_stiff") :
 	df = pd.read_csv(input_file)
-
-	# first plot is blocking fraction conditioned on reaching
-	# add error bars lol
-	# second plot is N data points in bin
-
-	# different colours
-
 	cmap = matplotlib.colormaps['jet']
 
 	norm = matplotlib.colors.Normalize(vmin = 0, vmax = 1)
-	nstiff = df["n_stiff"].unique()
+	nstiff = df[other_key].unique()
+
+	if len(compare_key):
+		nc = df[compare_key].nunique()
 
 	colors = [cmap(x) for x in np.linspace(0, 1, len(nstiff))]
 
@@ -41,8 +37,8 @@ def plot_blocking(input_file, plot_folder, plot_log = False, uid = "", compare_k
 
 
 	for c, (c_key, t_df) in enumerate(df.groupby(compare_key)):
-		for _, (p, _df) in enumerate(t_df.groupby(["n_stiff"])):
-			n_stiff = p[0]
+		for _, (p, _df) in enumerate(t_df.groupby(other_key)):
+			n_stiff = p
 
 			if not len(_df):
 				print("No data points for parameter set ", p)
@@ -59,7 +55,7 @@ def plot_blocking(input_file, plot_folder, plot_log = False, uid = "", compare_k
 			dts = np.insert(dts, 0, TIMESTEP)
 		
 			
-			if len(compare_key):
+			if len(compare_key) and nc > 1:
 				idx_0 = (c, 0)
 				idx_1 = (c, 1)
 			else:
@@ -90,10 +86,10 @@ def plot_blocking(input_file, plot_folder, plot_log = False, uid = "", compare_k
 			axs[idx_1].set_xlim(0, MAX_TIME)
 
 		axs[idx_0].set_ylabel("Blocking fraction (expt)")
-		axs[idx_0].legend(title = "n_stiff", fancybox = True)
+		axs[idx_0].legend(title = other_key, fancybox = True)
 
 		axs[idx_1].set_ylabel("LEF reaching stiff CDF")
-		axs[idx_1].legend(title = "n_stiff", fancybox = True)
+		axs[idx_1].legend(title = other_key, fancybox = True)
 
 		axs[idx_0].set_ylim(0, 1)
 		axs[idx_1].set_ylim(0, 1)
@@ -185,8 +181,9 @@ if __name__ == "__main__":
 	ap.add_argument("input_file")
 	ap.add_argument("plot_folder")
 	ap.add_argument("-c", "--compare_key", default = "")
+	ap.add_argument("-o", "--other_key", default = "n_stiff")
 	ap.add_argument("-l", "--log", action = "store_true")
 	ap.add_argument("-id", "--uid", default = "")
 
 	args = ap.parse_args()
-	plot_blocking(args.input_file, args.plot_folder, args.log, args.uid, args.compare_key)
+	plot_blocking(args.input_file, args.plot_folder, args.log, args.uid, args.compare_key, args.other_key)
