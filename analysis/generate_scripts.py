@@ -167,7 +167,7 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 			f.write("variable max_jump equal {:d}\n".format(int(lpol/2)))
 			f.write("variable init_force equal {:.2f}\n".format(_force))
 			f.write("variable tangent_cutoff equal {:.2f}\n".format(_tangent_cutoff))
-			f.write("variable pattern equal {:.2f}\n".format(_pattern))
+			f.write("variable pattern equal {}\n".format(_pattern))
 
 			if add_force:
 				f.write("group end1 id 1\n")
