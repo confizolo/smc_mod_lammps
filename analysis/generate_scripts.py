@@ -17,9 +17,9 @@ def generate_master_lams_file():
 
 def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, n_stiff = [4, 8, 12, 28, 40], lp_list = [20], lp_stiff = [200], add_force = False, custom_masterfile = "", regenerate_stiff = False, use_long = False, equil = "", start_shift = 20, start_index = 0, do_relax = False, force_list = [], extend_boundary = 0, tangent_cutoff_list = [0], patterns = ["1.0"], **kwargs):
 
-	def check_equil_in_folder(equil_folder, lp, lp_stiff, n_stiff, force):
+	def check_equil_in_folder(equil_folder, lp, lp_stiff, n_stiff, force, pattern):
 		target_file = "eq_lp{:d}-{:d}_nstiff-{:d}_f-{:.2f}.dat".format(lp, lp_stiff, n_stiff, force)
-		target_path = os.path.join(equil_folder, target_file)
+		target_path = os.path.join(equil_folder, "pat{}".format(pattern), target_file)
 
 		if os.path.exists(target_path):
 			return target_path
@@ -132,9 +132,9 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 
 			if len(equil):
 				if do_relax:
-					master_molecule_file = check_equil_in_folder(equil, lp, _lp_stiff, _n_stiff, 0)
+					master_molecule_file = check_equil_in_folder(equil, lp, _lp_stiff, _n_stiff, 0, _pattern)
 				else:
-					master_molecule_file = check_equil_in_folder(equil, lp, _lp_stiff, _n_stiff, _force)
+					master_molecule_file = check_equil_in_folder(equil, lp, _lp_stiff, _n_stiff, _force, _pattern)
 
 			else:
 				master_molecule_file = generate_stiff(_n_stiff, os.path.join(master_folder, "stiff_molecules"), default_paths[path_str]["molecule_file"], force = regenerate_stiff, extend_boundary=extend_boundary, pattern = _pattern)

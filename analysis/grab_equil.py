@@ -24,6 +24,7 @@ def main(input_folder, output_folder, source_file_name = "equil.dat", ):
 			"stiff_persistence_length": 0,
 			"n_stiff":0,
 			'init_force': 0,
+			"pattern":"1.0",
 		}
 
 		# rep_id = (rep.split("/")[-1][3:])
@@ -41,9 +42,9 @@ def main(input_folder, output_folder, source_file_name = "equil.dat", ):
 			int(params["n_stiff"]),
 			params["init_force"]
 		)
-		output_path = os.path.join(output_folder, output_filename)
+		output_path = os.path.join(output_folder, "pat{}".format(params["pattern"]), output_filename)
 
-		print(output_filename)
+		print(output_path)
 		shutil.copy(os.path.join(rep, source_file_name), output_path)
 
 
