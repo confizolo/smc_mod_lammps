@@ -42,10 +42,10 @@ def main(input_folder, output_folder, source_file_name = "equil.dat", ):
 			int(params["n_stiff"]),
 			params["init_force"]
 		)
-		output_path = os.path.join(output_folder, "pat{}".format(params["pattern"]), output_filename)
-
-		print(output_path)
-		shutil.copy(os.path.join(rep, source_file_name), output_path)
+		_output_folder = os.path.join(output_folder, "pat{}".format(params["pattern"]))
+		if not os.path.exists(_output_folder): os.makedirs(_output_folder)
+		print(_output_folder)
+		shutil.copy(os.path.join(rep, source_file_name), os.path.join(_output_folder, output_filename))
 
 
 if __name__ == "__main__":
