@@ -69,7 +69,7 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 
 	lpol = 1000 # length of polymer
 
-	ratesmc = 100 # smc movement attempt
+	ratesmc = 1000 # smc movement attempt
 	# run_duration = 100000 # total number of steps
 
 	# nrep = nrep # number of replicas to do
