@@ -15,7 +15,7 @@ def generate_master_lams_file():
 	pass
 
 
-def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, n_stiff = [4, 8, 12, 28, 40], lp_list = [20], lp_stiff = [200], add_force = False, custom_masterfile = "", regenerate_stiff = False, use_long = False, equil = "", start_shift = 20, start_index = 0, do_relax = False, force_list = [], extend_boundary = 0, tangent_cutoff_list = [0], patterns = ["1.0"], **kwargs):
+def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, n_stiff = [4, 8, 12, 28, 40], lp_list = [20], lp_stiff = [200], add_force = False, custom_masterfile = "", regenerate_stiff = False, use_long = False, equil = "", start_shift = 20, start_index = 0, do_relax = False, force_list = [], extend_boundary = 0, tangent_cutoff_list = [0], patterns = ["1.0"], grab_cutoff = 12, **kwargs):
 
 	def check_equil_in_folder(equil_folder, lp, lp_stiff, n_stiff, force, pattern):
 		target_file = "eq_lp{:d}-{:d}_nstiff-{:d}_f-{:.2f}.dat".format(lp, lp_stiff, n_stiff, force)
@@ -89,8 +89,8 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 			"molecule_file" : '/home/v1zchoon/smc-lammps/initfiles/single.dat',
 			"script_stiff":"/home/v1zchoon/masterfile_stiff.lam",
 			# "folder":"/home/v1zchoon/smc-single-polymer/",
-			"folder":"/storage/scratch/v1zchoon/smc-single-polymer",
-			"slurm_output": "/home/v1zchoon/slurm-wd",
+			"folder":"/storage/cmstore02/groups/TAPLab/zy-smc-single-polymer/scratch",
+			"slurm_output": "/storage/cmstore02/groups/TAPLab/zy-smc-single-polymer/slurm-wd",
 		}
 	}
 	###############################
@@ -168,6 +168,7 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 			f.write("variable init_force equal {:.2f}\n".format(_force))
 			f.write("variable tangent_cutoff equal {:.2f}\n".format(_tangent_cutoff))
 			f.write("variable pattern equal {}\n".format(_pattern))
+			f.write("variable grab_cutoff equal {:.2f}\n".format(grab_cutoff))
 
 			if add_force:
 				f.write("group end1 id 1\n")
@@ -315,6 +316,8 @@ if __name__ == "__main__":
 
 	ap.add_argument("-pat", "--patterns", nargs = "+", type = str, default = ["1.0"])
 
+	ap.add_argument("-cut", "--cutoff", default = 12., type = float)
+
 	ap.add_argument("job_name") # generate the SBATCH script
 	args = ap.parse_args()
 
@@ -337,4 +340,5 @@ if __name__ == "__main__":
 		extend_boundary=args.extend_boundary,
 		tangent_cutoff_list=args.tangent_cutoff,
 		patterns = args.patterns,
+		grab_cutoff = args.cutoff,
 	)
