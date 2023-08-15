@@ -271,7 +271,10 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 			else:
 				f.write(f"#SBATCH --partition=short\n")
 
-			f.write(f"~/slurm-wd/{jobname}/run_${{SLURM_ARRAY_TASK_ID}}.sh")
+			f.write("{}/{}/run_${{SLURM_ARRAY_TASK_ID}}.sh".format(
+				slurm_folder,
+				jobname,
+			))
 
 		print(os.path.abspath(os.path.join(master_folder, jobname)))
 
