@@ -57,7 +57,7 @@ def parse(target_folders, output_file, run_time = 100000):
 				if p in _pdf.index:
 					params[p] = _pdf.loc[p]["value"]
 
-			stiff_start, stiff_end, _build_str = parse_pattern(params["n_stiff"], params["pattern"])
+			stiff_start, stiff_end, _build_str = parse_pattern(params["n_stiff"], "{:.1f}".format(params["pattern"]))
 
 			t0_candidate = 0
 			flag_blocked = 1
