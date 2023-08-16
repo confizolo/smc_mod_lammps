@@ -85,7 +85,7 @@ def parse(target_folders, output_file, run_time = 100000):
 					_t = int(_line[0])
 					_x = int(_line[3])
 
-					if (_x == stiff_start) and (not flag_one_before):
+					if (_x == stiff_start - 1) and (not flag_one_before):
 						flag_one_before = 1 
 						# stop considering the time
 						t0_candidate = _t
