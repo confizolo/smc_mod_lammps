@@ -59,6 +59,7 @@ def parse(target_folders, output_file, run_time = 100000):
 
 			stiff_start, stiff_end, _build_str = parse_pattern(params["n_stiff"], "{:.1f}".format(params["pattern"]))
 			print(stiff_start, stiff_end)
+			print(pos_file)
 
 			t0_candidate = 0
 			flag_blocked = 1
@@ -107,6 +108,8 @@ def parse(target_folders, output_file, run_time = 100000):
 				continue
 			params["t0"] = t0_candidate
 			params["dt"] = dt
+			print(t0_candidate, dt)
+			print()
 
 			_df = pd.DataFrame([params])
 			df = pd.concat([df, _df], ignore_index = True)
