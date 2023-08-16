@@ -58,6 +58,7 @@ def parse(target_folders, output_file, run_time = 100000):
 					params[p] = _pdf.loc[p]["value"]
 
 			stiff_start, stiff_end, _build_str = parse_pattern(params["n_stiff"], "{:.1f}".format(params["pattern"]))
+			print(stiff_start, stiff_end)
 
 			t0_candidate = 0
 			flag_blocked = 1
