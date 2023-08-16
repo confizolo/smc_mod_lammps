@@ -5,6 +5,23 @@ from pathlib import Path
 import argparse
 import pandas as pd
 
+def parse_pattern(sl, x):
+	bunch, gap = x.split(".")
+	bunch, gap = int(bunch), int(gap)
+
+	_sl = sl + ((sl/bunch)-1) * gap
+	_start = int((1000 - _sl)/2 + 1) # if sl = 0, this is 501
+	_end = int(_start + _sl) # if sl = 0, this is 501
+
+	_build_str = ""
+
+	while _sl > 0:
+		_build_str += "o" * bunch
+		_sl -= bunch
+		_build_str += "x" * gap
+
+	return _start, _end, _build_str
+
 def parse(target_folders, output_file, run_time = 100000):
 
 	DEFAULT_RATE_SMC = 100
@@ -40,11 +57,7 @@ def parse(target_folders, output_file, run_time = 100000):
 				if p in _pdf.index:
 					params[p] = _pdf.loc[p]["value"]
 
-			n_stiff = params["n_stiff"]
-			lpol = params["lpol"]
-
-			stiff_start = math.floor((lpol - n_stiff)/2)
-			stiff_end = stiff_start + n_stiff
+			stiff_start, stiff_end, _build_str = parse_pattern(params["n_stiff"], params["pattern"])
 
 			t0_candidate = 0
 			flag_blocked = 1
