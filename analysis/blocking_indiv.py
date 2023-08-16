@@ -62,10 +62,10 @@ def parse(target_folders, output_file, run_time = 100000):
 			print(pos_file)
 
 			t0_candidate = 0
-			flag_blocked = 1
-			flag_one_before = 0
-			flag_set = False
 			dt = -1
+
+			reached_start = False
+			reached_end = False
 
 			with open(pos_file) as f:
 				last_t = 0
@@ -85,25 +85,18 @@ def parse(target_folders, output_file, run_time = 100000):
 					_t = int(_line[0])
 					_x = int(_line[3])
 
-					if (_x == stiff_start - 1) and (not flag_one_before):
-						flag_one_before = 1 
-						# stop considering the time
-						t0_candidate = _t
-
-					if (_x > stiff_end) and not flag_set:
-						if flag_blocked:
-							flag_blocked = 0
-						if (not flag_one_before): # jumped over entirely
-							t0_candidate = last_t
-							flag_one_before = 1
-
+					if (_x >= stiff_start - 1) and not reached_start:
+						if _x < stiff_end:
+							reached_start = True
+							t0_candidate = _t
+						else:
+							t0_candidate = _t - params["ratesmc"]
+							reached_end = True
+							
+					if _x > stiff_end and not reached_end:
+						reached_end = True
 						dt = _t - t0_candidate
 
-						flag_set = True
-
-					if _x != last_x:
-						last_x = _x
-						last_t = _t
 			if _t < run_time:
 				continue
 			params["t0"] = t0_candidate
