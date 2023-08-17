@@ -90,6 +90,7 @@ def parse(target_folders, output_file, run_time = 100000):
 						else:
 							t0_candidate = _t - params["ratesmc"]
 							reached_end = True
+							reached_start = True
 							
 					if _x > stiff_end and not reached_end:
 						reached_end = True
