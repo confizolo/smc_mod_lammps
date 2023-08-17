@@ -84,13 +84,12 @@ def parse(target_folders, output_file, run_time = 100000):
 					_x = int(_line[3])
 
 					if (_x >= stiff_start - 1) and not reached_start:
+						reached_start = True
 						if _x < stiff_end:
-							reached_start = True
 							t0_candidate = _t
 						else:
 							t0_candidate = _t - params["ratesmc"]
 							reached_end = True
-							reached_start = True
 							
 					if _x > stiff_end and not reached_end:
 						reached_end = True
