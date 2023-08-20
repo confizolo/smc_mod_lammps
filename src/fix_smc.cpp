@@ -412,7 +412,8 @@ void FixSMC::post_integrate() {
         continue;
       }
 
-      for (int l_sample = 0; l_sample < std::max(abs(maxadir), abs(maxhdir)); l_sample ++){
+      // for (int l_sample = 0; l_sample < std::max(abs(maxadir), abs(maxhdir)); l_sample ++){
+      for (int l_sample = 0; l_sample < 1; l_sample ++){
 
         if (comm -> me == 0) jrand = random_equal -> uniform();
         MPI_Bcast( & jrand, 1, MPI_DOUBLE, 0, world);

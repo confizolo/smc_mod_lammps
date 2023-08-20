@@ -72,6 +72,7 @@ def plot_blocking(input_file, plot_folder, plot_log = False, uid = "", compare_k
 
 		axs[idx_0].set_title("{} = {:.2f}".format(compare_key, c_key))
 		axs[idx_1].set_title("{} = {:.2f}".format(compare_key, c_key))
+
 		if plot_log:
 			axs[idx_0].set_xscale("log")
 			axs[idx_0].set_xlabel("Simulation time (log)")
