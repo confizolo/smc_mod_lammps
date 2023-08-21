@@ -22,7 +22,7 @@ def parse_pattern(sl, x):
 
 	return _start, _end, _build_str
 
-def parse(target_folders, output_file, run_time = 100000):
+def parse(target_folders, output_file, run_time = 100000, end_choice = "end"):
 
 	DEFAULT_RATE_SMC = 100
 	DEFAULT_RUN_DURATION = run_time
@@ -58,6 +58,10 @@ def parse(target_folders, output_file, run_time = 100000):
 					params[p] = _pdf.loc[p]["value"]
 
 			stiff_start, stiff_end, _build_str = parse_pattern(params["n_stiff"], "{:.1f}".format(params["pattern"]))
+			if end_choice == "end":
+				blocking_end = stiff_end
+			elif end_choice == "mid":
+				blocking_end = 501 # cross the halfway mark
 
 			t0_candidate = 0
 			dt = -1
@@ -91,7 +95,7 @@ def parse(target_folders, output_file, run_time = 100000):
 							t0_candidate = _t - params["ratesmc"]
 							reached_end = True
 							
-					if _x > stiff_end and not reached_end:
+					if _x > blocking_end and not reached_end:
 						reached_end = True
 						dt = _t - t0_candidate
 
@@ -111,7 +115,8 @@ if __name__ == "__main__":
 	ap.add_argument("-i","--input_folder", nargs = "+")
 	ap.add_argument("-o","--output_file")
 	ap.add_argument("-t", "--time", type = int, default = 100000)
+	ap.add_argument("-e", "--end", default = "end")
 
 	args = ap.parse_args()
 	
-	parse(args.input_folder, args.output_file, args.time)
+	parse(args.input_folder, args.output_file, args.time, args.end)
