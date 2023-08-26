@@ -322,7 +322,7 @@ if __name__ == "__main__":
 
 	ap.add_argument("-cut", "--cutoff", default = 12., type = float)
 	ap.add_argument("-dt","--ratesmc", type = int, default = 1000)
-	ap.add_argument("-lf", "--langfric", default = 1.0)
+	ap.add_argument("-lf", "--langfric", default = 1.0, type = float)
 	ap.add_argument("job_name") # generate the SBATCH script
 
 	args = ap.parse_args()
