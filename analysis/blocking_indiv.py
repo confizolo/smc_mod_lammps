@@ -61,7 +61,7 @@ def parse(target_folders, output_file, run_time = 100000, end_choice = "end"):
 			if end_choice == "end":
 				blocking_end = stiff_end
 			elif end_choice == "mid":
-				blocking_end = 501 # cross the halfway mark
+				blocking_end = 500 # cross the halfway mark
 
 
 			t0_candidate = 0
@@ -97,6 +97,7 @@ def parse(target_folders, output_file, run_time = 100000, end_choice = "end"):
 							
 					if _x > blocking_end and not reached_end:
 						reached_end = True
+						dt = _t - t0_candidate
 
 			if _t < run_time:
 				continue
