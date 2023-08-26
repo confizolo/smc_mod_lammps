@@ -63,6 +63,8 @@ def parse(target_folders, output_file, run_time = 100000, end_choice = "end"):
 			elif end_choice == "mid":
 				blocking_end = 501 # cross the halfway mark
 
+			print("blocking end: ", blocking_end)
+
 			t0_candidate = 0
 			dt = -1
 
@@ -70,13 +72,10 @@ def parse(target_folders, output_file, run_time = 100000, end_choice = "end"):
 			reached_end = False
 
 			with open(pos_file) as f:
-				last_t = 0
-				last_x = 0
 				for line in f:
 					_line = line.strip().split(" ")
 					if len(_line) < 4:
 						break 
-
 					try:
 						int(_line[0])
 						int(_line[3])
