@@ -20,7 +20,7 @@ def parse_pattern(sl, x):
 		_sl -= bunch
 		_build_str += "x" * gap
 
-	return _start, _end, _build_str
+	return _start, _end - gap, _build_str
 
 def parse(target_folders, output_file, run_time = 100000, end_choice = "end"):
 
