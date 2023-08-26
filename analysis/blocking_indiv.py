@@ -33,6 +33,7 @@ def parse(target_folders, output_file, run_time = 100000, end_choice = "end"):
 		rep_folder_list = [str(f.parent.absolute()) for f in Path(os.path.join(target_folder)).rglob("smc_pos.txt")]
 
 		for _, rep in enumerate(rep_folder_list):
+			print(rep)
 			pos_file = os.path.join(rep, "smc_pos.txt")
 
 			params = {
