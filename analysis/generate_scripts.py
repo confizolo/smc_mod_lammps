@@ -15,7 +15,7 @@ def generate_master_lams_file():
 	pass
 
 
-def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, n_stiff = [4, 8, 12, 28, 40], lp_list = [20], lp_stiff = [200], add_force = False, custom_masterfile = "", regenerate_stiff = False, use_long = False, equil = "", start_shift = 20, start_index = 0, do_relax = False, force_list = [], extend_boundary = 0, tangent_cutoff_list = [0], patterns = ["1.0"], grab_cutoff = 12,ratesmc = 1000, **kwargs):
+def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, n_stiff = [4, 8, 12, 28, 40], lp_list = [20], lp_stiff = [200], add_force = False, custom_masterfile = "", regenerate_stiff = False, use_long = False, equil = "", start_shift = 20, start_index = 0, do_relax = False, force_list = [], extend_boundary = 0, tangent_cutoff_list = [0], patterns = ["1.0"], grab_cutoff = 12,ratesmc = 1000, langfric = 1.0, **kwargs):
 
 	def check_equil_in_folder(equil_folder, lp, lp_stiff, n_stiff, force, pattern):
 		target_file = "eq_lp{:d}-{:d}_nstiff-{:d}_f-{:.2f}.dat".format(lp, lp_stiff, n_stiff, force)
@@ -159,6 +159,8 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 			f.write("variable ratesmc equal {}\n".format(ratesmc))
 			f.write("variable persistence_length equal {:.2f}\n".format(lp))
 			f.write("variable run_duration equal {:d}\n".format(run_duration))
+
+			f.write("variable lang_fric equal {:.1f}\n".format(langfric))
 
 			f.write("variable stiff_persistence_length equal {:.2f}\n".format(_lp_stiff))
 			f.write("variable start_position equal {:d}\n".format(_start_position))
@@ -320,6 +322,7 @@ if __name__ == "__main__":
 
 	ap.add_argument("-cut", "--cutoff", default = 12., type = float)
 	ap.add_argument("-dt","--ratesmc", type = int, default = 1000)
+	ap.add_argument("-lf", "--langfric", default = 1.0)
 	ap.add_argument("job_name") # generate the SBATCH script
 
 	args = ap.parse_args()
@@ -345,4 +348,5 @@ if __name__ == "__main__":
 		patterns = args.patterns,
 		grab_cutoff = args.cutoff,
 		ratesmc = args.ratesmc,
+		langfric = args.langfric,
 	)

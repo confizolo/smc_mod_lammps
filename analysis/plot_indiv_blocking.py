@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import matplotlib
 
-def plot_blocking(input_file, plot_folder, plot_log = False, uid = "", compare_key = "", other_key = "n_stiff") :
+def plot_blocking(input_file, plot_folder, plot_log = False, uid = "", compare_key = "", other_key = "n_stiff", n_reps = 40) :
 	df = pd.read_csv(input_file)
 	cmap = matplotlib.colormaps['jet']
 
@@ -32,9 +32,8 @@ def plot_blocking(input_file, plot_folder, plot_log = False, uid = "", compare_k
 		fig, axs = plt.subplots(2)
 
 	df = df.sort_values(by = "dt")
-
+	# n_reps = len(df) / 20
 	# group by force too
-
 
 	for c, (c_key, t_df) in enumerate(df.groupby(compare_key)):
 		for _, (p, _df) in enumerate(t_df.groupby(other_key)):
@@ -53,8 +52,9 @@ def plot_blocking(input_file, plot_folder, plot_log = False, uid = "", compare_k
 
 			y = np.insert(y, 0, 1)
 			dts = np.insert(dts, 0, TIMESTEP)
-		
 			
+			yerror = 1.96 * np.sqrt((y) * (1 - y)/n_reps)
+
 			if len(compare_key) and nc > 1:
 				idx_0 = (c, 0)
 				idx_1 = (c, 1)
@@ -62,13 +62,16 @@ def plot_blocking(input_file, plot_folder, plot_log = False, uid = "", compare_k
 				idx_0 = 0
 				idx_1 = 1
 
-			axs[idx_0].plot(dts, y, color = colors[stiff_map[n_stiff]], label = str(n_stiff), lw = 2)
+			axs[idx_0].plot(dts, y, color = colors[stiff_map[n_stiff]], label = str(n_stiff), lw = 2, alpha = 0.6)
+			axs[idx_0].fill_between(dts, y + yerror, y - yerror, color = colors[stiff_map[n_stiff]], alpha = 0.4)
 			# axs[1].plot(n_stiff, len(tdf), color = colors[stiff_map[n_stiff]])
 
 			reaching_cdf = _df.sort_values("t0")["t0"].values
-			reaching_y = [_/len(reaching_cdf) for _ in range(len(reaching_cdf))]
+			reaching_y = np.array([_/len(reaching_cdf) for _ in range(len(reaching_cdf))])
 
 			axs[idx_1].plot(reaching_cdf, reaching_y, color = colors[stiff_map[n_stiff]], label = str(n_stiff), lw = 2, alpha = 0.8)
+
+			# axs[idx_1].errorbar(reaching_cdf, reaching_y, yerror, color = colors[stiff_map[n_stiff]], label = str(n_stiff), lw = 2, alpha = 0.8, capsize = 2)
 
 		axs[idx_0].set_title("{} = {:.2f}".format(compare_key, c_key))
 		axs[idx_1].set_title("{} = {:.2f}".format(compare_key, c_key))
@@ -185,6 +188,7 @@ if __name__ == "__main__":
 	ap.add_argument("-o", "--other_key", default = "n_stiff")
 	ap.add_argument("-l", "--log", action = "store_true")
 	ap.add_argument("-id", "--uid", default = "")
+	ap.add_argument("-n", "--nreps", type = int, default = 40)
 
 	args = ap.parse_args()
-	plot_blocking(args.input_file, args.plot_folder, args.log, args.uid, args.compare_key, args.other_key)
+	plot_blocking(args.input_file, args.plot_folder, args.log, args.uid, args.compare_key, args.other_key, args.nreps)
