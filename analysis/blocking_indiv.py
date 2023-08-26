@@ -63,7 +63,6 @@ def parse(target_folders, output_file, run_time = 100000, end_choice = "end"):
 			elif end_choice == "mid":
 				blocking_end = 501 # cross the halfway mark
 
-			print("blocking end: ", blocking_end)
 
 			t0_candidate = 0
 			dt = -1
@@ -88,7 +87,7 @@ def parse(target_folders, output_file, run_time = 100000, end_choice = "end"):
 
 					if (_x >= stiff_start - 1) and not reached_start:
 						reached_start = True
-						if _x < stiff_end:
+						if _x < blocking_end:
 							t0_candidate = _t
 						else:
 							t0_candidate = _t - params["ratesmc"]
