@@ -1,4 +1,3 @@
-from pkgutil import extend_path
 import shutil
 import random
 import argparse

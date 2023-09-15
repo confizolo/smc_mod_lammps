@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import matplotlib
 
-def plot_blocking(input_file, plot_folder, plot_log = False, uid = "", compare_key = "", other_key = "n_stiff", n_reps = 40) :
+def plot_blocking(input_file, plot_folder, plot_log = False, uid = "", compare_key = "", other_key = "n_stiff", n_reps = 40, filters = []) :
 	df = pd.read_csv(input_file)
 	cmap = matplotlib.colormaps['jet']
 
@@ -23,6 +23,13 @@ def plot_blocking(input_file, plot_folder, plot_log = False, uid = "", compare_k
 	TIMESTEP = df["ratesmc"].values[0]
 
 	df = df[df["tangent_cutoff"]!=0]
+
+	if len(filters):
+		for filter in filters:
+			x = filter.strip()
+			_k, _v = x.split("=")[0], float(x.split("=")[1])
+			if _k not in df.columns: continue
+			df = df[df[_k] == _v]
 	
 	if len(compare_key):
 		n_compare = df[compare_key].nunique()
@@ -189,6 +196,7 @@ if __name__ == "__main__":
 	ap.add_argument("-l", "--log", action = "store_true")
 	ap.add_argument("-id", "--uid", default = "")
 	ap.add_argument("-n", "--nreps", type = int, default = 40)
+	ap.add_argument("-f", "--filters", type = str, nargs="+")
 
 	args = ap.parse_args()
-	plot_blocking(args.input_file, args.plot_folder, args.log, args.uid, args.compare_key, args.other_key, args.nreps)
+	plot_blocking(args.input_file, args.plot_folder, args.log, args.uid, args.compare_key, args.other_key, args.nreps, args.filters)
