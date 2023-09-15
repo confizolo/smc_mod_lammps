@@ -47,6 +47,7 @@ def parse(target_folders, output_file, run_time = 100000, end_choice = "end"):
 				"tangent_cutoff":0,
 				"pattern":"1.0",
 				"grab_cutoff":0,
+				"lang_fric":1,
 			}
 
 			params["replica_id"] = rep 
@@ -58,10 +59,13 @@ def parse(target_folders, output_file, run_time = 100000, end_choice = "end"):
 					params[p] = _pdf.loc[p]["value"]
 
 			stiff_start, stiff_end, _build_str = parse_pattern(params["n_stiff"], "{:.1f}".format(params["pattern"]))
+
 			if end_choice == "end":
 				blocking_end = stiff_end
 			elif end_choice == "mid":
 				blocking_end = 500 # cross the halfway mark
+			elif end_choice == "d40":
+				blocking_end = stiff_start + 40
 
 
 			t0_candidate = 0
