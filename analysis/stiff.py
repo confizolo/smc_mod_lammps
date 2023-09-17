@@ -21,6 +21,7 @@ def generate_stiff(sl: int, molecule_folder, molecule_file, output_path, force =
 			_sl -= bunch
 			_build_str += "x" * gap
 
+		print(_build_str)
 		return _start, _end, _build_str
 	
 	# MOLECULE_FILE = "/home/zy/Documents/tap/smc-lammps/data/In_conf.Nb1000.RW4.fixed.dat"
