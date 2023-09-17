@@ -67,7 +67,6 @@ def parse(target_folders, output_file, run_time = 100000, end_choice = "end"):
 			elif end_choice == "d40":
 				blocking_end = stiff_start + 40
 
-
 			t0_candidate = 0
 			dt = -1
 

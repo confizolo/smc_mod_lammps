@@ -1,6 +1,6 @@
 import os
 
-def generate_stiff(sl: int, molecule_folder, molecule_file, force = False, extend_boundary = False, pattern = "",):
+def generate_stiff(sl: int, molecule_folder, molecule_file, output_path, force = False, extend_boundary = False, pattern = "", overwrite_accessible = False):
 	"""
 	format: 1.1 1 bead, 1 blank
 	count such that  there is one bead at the end (fencepost counting)
@@ -25,7 +25,8 @@ def generate_stiff(sl: int, molecule_folder, molecule_file, force = False, exten
 	
 	# MOLECULE_FILE = "/home/zy/Documents/tap/smc-lammps/data/In_conf.Nb1000.RW4.fixed.dat"
 	MOLECULE_FILE = molecule_file
-	NEW_ATOM = 4
+	NEW_ATOM_O = 4
+	NEW_ATOM_X = 5
 	NEW_ANGLE = 2
 	# sl = 500 # this is variable
 
@@ -34,18 +35,21 @@ def generate_stiff(sl: int, molecule_folder, molecule_file, force = False, exten
 		for line in f:
 			text.append(line)	
 
-	text[3] = "4 atom types\n"
+	text[3] = "5 atom types\n"
 	text[7] = "2 angle types\n"
 
 	if extend_boundary:
 		text[9] = "-{:.2f} {:.2f} xlo xhi\n".format(extend_boundary, extend_boundary)
 
-	text.insert(18, "4 1\n")
+	if overwrite_accessible:
+		text.insert(18, "5 1\n")
+	else:
+		text.insert(18, "4 1\n")
 
 	if not os.path.exists(molecule_folder):
 		os.makedirs(molecule_folder)
 
-	output_path = os.path.join(molecule_folder, f"stiff_{sl}{pattern}.dat")
+	# output_path = os.path.join(molecule_folder, file_name)
 	lpol = 1000
 
 	if os.path.exists(output_path) and not force:
@@ -74,7 +78,9 @@ def generate_stiff(sl: int, molecule_folder, molecule_file, force = False, exten
 			_id = int(_data[0])
 			if _id in range(stiff_start, stiff_end):
 				if build_str[_id - stiff_start] == "o":
-					_data[2] = str(NEW_ATOM) 
+					_data[2] = str(NEW_ATOM_O) 
+				elif build_str[_id - stiff_start] == "x":
+					_data[2] = str(NEW_ATOM_X)
 
 			atom_data.append(" ".join(_data))
 

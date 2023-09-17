@@ -1,3 +1,5 @@
+from curses import mousemask
+from doctest import master
 import shutil
 import random
 import argparse
@@ -14,7 +16,7 @@ def generate_master_lams_file():
 	pass
 
 
-def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, n_stiff = [4, 8, 12, 28, 40], lp_list = [20], lp_stiff = [200], add_force = False, custom_masterfile = "", regenerate_stiff = False, use_long = False, equil = "", start_shift = 20, start_index = 0, do_relax = False, force_list = [], extend_boundary = 0, tangent_cutoff_list = [0], patterns = ["1.0"], grab_cutoff = 12,ratesmc = 1000, langfric = 1.0, fake_lpst = -1, **kwargs):
+def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 100000, n_stiff = [4, 8, 12, 28, 40], lp_list = [20], lp_stiff = [200], add_force = False, custom_masterfile = "", regenerate_stiff = False, use_long = False, equil = "", start_shift = 20, start_index = 0, do_relax = False, force_list = [], extend_boundary = 0, tangent_cutoff_list = [0], patterns = ["1.0"], grab_cutoff = 12,ratesmc = 1000, langfric = 1.0, fake_lpst = -1, overwrite_accessible = False, **kwargs):
 
 	def check_equil_in_folder(equil_folder, lp, lp_stiff, n_stiff, force, pattern):
 		target_file = "eq_lp{:d}-{:d}_nstiff-{:d}_f-{:.2f}.dat".format(lp, lp_stiff, n_stiff, force)
@@ -56,25 +58,11 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 	else:
 		path_str = "slurm"
 
-	# master_folder = '/home/zy/Documents/tap/smc-single-polymer/'
-	# jobname = 'stiff-14-fix-edgecase'
-
-	# lp_stiff = [50]
-	# n_stiff = [4, 8, 12, 28, 40]
-
-	# force_list = [0] # //TODO add as a commandline arg later
 
 	parameter_set = itertools.product(lp_list, lp_stiff, n_stiff, force_list, tangent_cutoff_list, patterns)
 
 	lpol = 1000 # length of polymer
 
-	# run_duration = 100000 # total number of steps
-
-	# nrep = nrep # number of replicas to do
-	# npara = 16 # no. of parallel jobs
-	#
-	#
-	#
 	default_paths = {
 		"local":{
 			"script":'/home/zy/Documents/tap/masterfile.lam',
@@ -137,7 +125,14 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 					else:
 						master_molecule_file = check_equil_in_folder(equil, lp, fake_lpst, _n_stiff, _force, _pattern)
 
+					# figure out the correct template, then over write it
+					if overwrite_accessible:
+						new_file_name = os.path.join(os.path.dirname(master_molecule_file), "inaccess_"+os.path.basename(master_molecule_file) )
+						master_molecule_file = generate_stiff(_n_stiff, equil, master_molecule_file, new_file_name, force = regenerate_stiff, pattern = _pattern, overwrite_accessible=True)
+
+
 			else:
+				# TODO i need to fix the logic for generating molecules...
 				master_molecule_file = generate_stiff(_n_stiff, os.path.join(master_folder, "stiff_molecules"), default_paths[path_str]["molecule_file"], force = regenerate_stiff, extend_boundary=extend_boundary, pattern = _pattern)
 
 			lp_folder = os.path.join(master_folder, jobname, f"N{lpol}", f"lp{lp:02}", f"lp-stiff{_lp_stiff:02}", f"n-stiff{_n_stiff:d}", f"force_{_force:.2f}", f"tan_{_tangent_cutoff:.2f}", f"pat_{_pattern}")
@@ -326,6 +321,9 @@ if __name__ == "__main__":
 	ap.add_argument("-dt","--ratesmc", type = int, default = 1000)
 	ap.add_argument("-lf", "--langfric", default = 1.0, type = float)
 	ap.add_argument("-flpst", "--fake_lpst", default = -1, type = int)
+	# ap.add_argument("-tem", "--custom_molecule_template", default = "")
+	ap.add_argument("-oa", "--overwrite_accessible", action = "store_true")
+
 	ap.add_argument("job_name") # generate the SBATCH script
 
 	args = ap.parse_args()
@@ -353,4 +351,5 @@ if __name__ == "__main__":
 		ratesmc = args.ratesmc,
 		langfric = args.langfric,
 		fake_lpst = args.fake_lpst,
+		overwrite_accesible = args.overwrite_accessible,
 	)
