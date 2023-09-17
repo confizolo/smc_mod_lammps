@@ -127,6 +127,7 @@ def main(do_local, do_slurm, jobname, nrep = 96, npara = 16, run_duration = 1000
 
 					# figure out the correct template, then over write it
 					if overwrite_accessible:
+						print("debug")
 						new_file_name = os.path.join(os.path.dirname(master_molecule_file), "inaccess_"+os.path.basename(master_molecule_file) )
 						master_molecule_file = generate_stiff(_n_stiff, equil, master_molecule_file, new_file_name, force = regenerate_stiff, pattern = _pattern, overwrite_accessible=True)
 
