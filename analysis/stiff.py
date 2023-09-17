@@ -10,7 +10,7 @@ def generate_stiff(sl: int, molecule_folder, molecule_file, output_path, force =
 		bunch, gap = x.split(".")
 		bunch, gap = int(bunch), int(gap)
 
-		_sl = sl + ((sl/bunch)-1) * gap
+		_sl = sl + ((sl/bunch)-1) * gap # fixes fencepost counting
 		_start = int((lpol - _sl)/2 + 1) # if sl = 0, this is 501
 		_end = int(_start + _sl) # if sl = 0, this is 501
 
@@ -19,9 +19,9 @@ def generate_stiff(sl: int, molecule_folder, molecule_file, output_path, force =
 		while _sl > 0:
 			_build_str += "o" * bunch
 			_sl -= bunch
+			if _sl < 0: break
 			_build_str += "x" * gap
 
-		print(_build_str)
 		return _start, _end, _build_str
 	
 	# MOLECULE_FILE = "/home/zy/Documents/tap/smc-lammps/data/In_conf.Nb1000.RW4.fixed.dat"
