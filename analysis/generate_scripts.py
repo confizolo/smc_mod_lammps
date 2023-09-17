@@ -352,5 +352,5 @@ if __name__ == "__main__":
 		ratesmc = args.ratesmc,
 		langfric = args.langfric,
 		fake_lpst = args.fake_lpst,
-		overwrite_accesible = args.overwrite_accessible,
+		overwrite_accessible = args.overwrite_accessible,
 	)
