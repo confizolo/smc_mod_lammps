@@ -71,6 +71,7 @@ def parse(target_folders, output_file, run_time = 100000, end_choice = "end"):
 
 			reached_start = False
 			reached_end = False
+			flag_faulty = False
 
 			with open(pos_file) as f:
 				for line in f:
@@ -86,6 +87,8 @@ def parse(target_folders, output_file, run_time = 100000, end_choice = "end"):
 
 					_t = int(_line[0])
 					_x = int(_line[3])
+					if _x > 1000:
+						flag_faulty = True
 
 					if (_x >= stiff_start - 1) and not reached_start:
 						reached_start = True
@@ -102,6 +105,9 @@ def parse(target_folders, output_file, run_time = 100000, end_choice = "end"):
 						dt = _t - t0_candidate
 
 			if _t < run_time:
+				continue
+
+			if flag_faulty:
 				continue
 			params["t0"] = t0_candidate
 			params["dt"] = dt
