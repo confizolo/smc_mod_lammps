@@ -171,13 +171,19 @@ def parse_positions(target_folders, output_file, end_choice):
 			observed_x2 = {}
 			# just save it in a giant pickle lol
 
+			faulty_flag = False
 			with open(pos_file, "r") as f:
 				for line in f:
 					x = [int(_) for _ in line.strip().split(" ")]
+					if x[-1] > 1000:
+						faulty_flag = True
+						break
 
 					if x[-1] not in observed_x2:
 						observed_x2[x[-1]] = x[0]
 
+			if faulty_flag:
+				continue
 			output[rep] = {"params": params, "data": observed_x2}
 	
 
