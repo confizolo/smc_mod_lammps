@@ -4,9 +4,18 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import matplotlib
+from phase_diagram import get_pf
 
-def plot_blocking(input_file, plot_folder, plot_log = False, uid = "", compare_key = "", other_key = "n_stiff", n_reps = 40, filters = []) :
+def plot_blocking(input_file, plot_folder, plot_log = False, uid = "", compare_key = "", other_key = "n_stiff", n_reps = 40, filters = [], plot_a = False, plot_b = False) :
 	df = pd.read_csv(input_file)
+
+	# def get_pf(df, k1, k2, ct = 0.5, k1_max = False, k2_max = False, return_ctime = False):
+
+	if plot_a:
+		ctime = get_pf(df, "init_force", "pattern", 0.5, return_ctime = True)
+	else:
+		ctime = get_pf(df, "init_force", "n_stiff", 0.5, return_ctime = True, k2_max = True)
+
 	cmap = matplotlib.colormaps['jet']
 
 	norm = matplotlib.colors.Normalize(vmin = 0, vmax = 1)
@@ -82,6 +91,8 @@ def plot_blocking(input_file, plot_folder, plot_log = False, uid = "", compare_k
 
 		axs[idx_0].set_title("{} = {:.2f}".format(compare_key, c_key))
 		axs[idx_1].set_title("{} = {:.2f}".format(compare_key, c_key))
+		axs[idx_0].axvline(ctime, color = "black")
+		axs[idx_1].axvline(ctime, color = "black")
 
 		if plot_log:
 			axs[idx_0].set_xscale("log")
@@ -196,7 +207,9 @@ if __name__ == "__main__":
 	ap.add_argument("-l", "--log", action = "store_true")
 	ap.add_argument("-id", "--uid", default = "")
 	ap.add_argument("-n", "--nreps", type = int, default = 40)
-	ap.add_argument("-f", "--filters", type = str, nargs="+")
+	ap.add_argument("-f", "--filters", type = str, nargs="+", default = "")
+	ap.add_argument("-a", "--plot_a", action = "store_true")
+	ap.add_argument("-b", "--plot_b", action = "store_true")
 
 	args = ap.parse_args()
-	plot_blocking(args.input_file, args.plot_folder, args.log, args.uid, args.compare_key, args.other_key, args.nreps, args.filters)
+	plot_blocking(args.input_file, args.plot_folder, args.log, args.uid, args.compare_key, args.other_key, args.nreps, args.filters, args.plot_a, args.plot_b)
