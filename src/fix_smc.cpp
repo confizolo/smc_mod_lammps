@@ -449,25 +449,25 @@ void FixSMC::post_integrate() {
 
         // Check if the SMCs' ends are moving over the polymer ends
         if (hdir / (abs(hdir)) < 0) {
-          if ((hing[i] + hdir) % lpol == 0){
+          if (((hing[i] + hdir) % lpol <= 0) || (((hing[i] + hdir) / lpol) != ((hing[i]) / lpol))){
             if (!ring) temphdir = 0;
-            else temphdir = (lpol-1);
+            else temphdir = (hing[i] + hdir) % lpol - hing[i];
           }
         } else {
-          if ((hing[i] + hdir) % lpol == 1){
+          if (((hing[i] + hdir) / lpol) != ((hing[i]) / lpol)){
             if (!ring) temphdir = 0;
-            else temphdir = 1-lpol;
+            else temphdir = (hing[i] + hdir) % lpol - hing[i];
           }
         }
         if (adir / (abs(adir)) < 0) {
-          if ((anch[i] + adir) % lpol == 0){
+          if (((anch[i] + adir) % lpol <= 0) || (((anch[i] + adir) / lpol) != ((anch[i]) / lpol))){
             if (!ring) tempadir = 0;
-            else tempadir = (lpol-1);
+            else tempadir = (anch[i] + hdir) % lpol - anch[i];
           }
         } else {
-          if ((anch[i] + adir) % lpol == 1){
+          if (((anch[i] + adir) / lpol) != ((anch[i]) / lpol)){
             if (!ring) tempadir = 0;
-            else tempadir = 1-lpol;
+            else tempadir = (anch[i] + hdir) % lpol - anch[i];
           }
         }
 
