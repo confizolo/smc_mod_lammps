@@ -440,6 +440,13 @@ void FixSMC::post_integrate() {
         tempadir = adir;
         temphdir = hdir;
 
+        l_flag = 0;
+        t_flag = 0;
+
+        if ((hing[i] + temphdir) > 1000){
+          continue;
+        }
+
         // Check if the SMCs' ends are moving over the polymer ends
         if (hdir / (abs(hdir)) < 0) {
           if ((hing[i] + hdir) % lpol == 0){
@@ -538,8 +545,6 @@ void FixSMC::post_integrate() {
         // Barrier to check that each processor has defined correctly each smc
         MPI_Barrier(world);
 
-        l_flag = 0;
-        t_flag = 0;
 
         // Check if the distance is small enough to accept the movement
         if (dist > cutoff) continue;
