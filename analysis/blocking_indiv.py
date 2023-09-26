@@ -107,8 +107,8 @@ def parse(target_folders, output_file, run_time = 100000, end_choice = "end"):
 
 			if _t < run_time:
 				continue
-
 			if flag_faulty:
+				print("faulty, ", pos_file)
 				continue
 			params["t0"] = t0_candidate
 			params["dt"] = dt
