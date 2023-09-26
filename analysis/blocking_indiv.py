@@ -89,6 +89,7 @@ def parse(target_folders, output_file, run_time = 100000, end_choice = "end"):
 					_x = int(_line[3])
 					if _x > 1000:
 						flag_faulty = True
+						break
 
 					if (_x >= stiff_start - 1) and not reached_start:
 						reached_start = True
