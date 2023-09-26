@@ -145,7 +145,7 @@ def parse_positions(target_folders, output_file, end_choice):
 				"lang_fric":1,
 			}
 
-			params["replica_id"] = rep 
+			# params["replica_id"] = rep 
 
 			_pdf = pd.read_csv(os.path.join(rep, "parameters.dat"), sep = " ", header = None, names = [ "var_name" ,"value"], usecols = [1,3])
 			_pdf = _pdf.set_index("var_name")
@@ -172,7 +172,7 @@ def parse_positions(target_folders, output_file, end_choice):
 					if x[-1] not in observed_x2:
 						observed_x2[x[-1]] = x[0]
 
-			output[rep] = observed_x2
+			output[rep] = {"params": params, "data": observed_x2}
 	
 
 	with open(output_file, 'wb') as f:
