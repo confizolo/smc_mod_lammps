@@ -1,33 +1,34 @@
 import os
 
+
+def parse_pattern(sl, x, lpol = 1000):
+	bunch, gap = x.split(".")
+	bunch, gap = int(bunch), int(gap)
+
+	_sl = sl + ((sl/bunch)-1) * gap # fixes fencepost counting
+	_start = int((lpol - _sl)/2 + 1) # if sl = 0, this is 501
+	_end = int(_start + _sl) # if sl = 0, this is 501
+
+	_build_str = ""
+
+	while _sl > 0:
+		_build_str += "o" * bunch
+		_sl -= bunch
+		if _sl < 0: break
+		_build_str += "x" * gap
+
+	return _start, _end, _build_str
+
 def generate_stiff(sl: int, molecule_folder, molecule_file, output_path, force = False, extend_boundary = False, pattern = "", overwrite_accessible = False):
 	"""
 	format: 1.1 1 bead, 1 blank
 	count such that  there is one bead at the end (fencepost counting)
 	"""
-
-	def parse_pattern(sl, x):
-		bunch, gap = x.split(".")
-		bunch, gap = int(bunch), int(gap)
-
-		_sl = sl + ((sl/bunch)-1) * gap # fixes fencepost counting
-		_start = int((lpol - _sl)/2 + 1) # if sl = 0, this is 501
-		_end = int(_start + _sl) # if sl = 0, this is 501
-
-		_build_str = ""
-
-		while _sl > 0:
-			_build_str += "o" * bunch
-			_sl -= bunch
-			if _sl < 0: break
-			_build_str += "x" * gap
-
-		return _start, _end, _build_str
 	
 	# MOLECULE_FILE = "/home/zy/Documents/tap/smc-lammps/data/In_conf.Nb1000.RW4.fixed.dat"
 	MOLECULE_FILE = molecule_file
 	NEW_ATOM_O = 4
-	NEW_ATOM_X = 5
+	NEW_ATOM_X = 1
 	NEW_ANGLE = 2
 	# sl = 500 # this is variable
 
@@ -36,7 +37,7 @@ def generate_stiff(sl: int, molecule_folder, molecule_file, output_path, force =
 		for line in f:
 			text.append(line)	
 
-	text[3] = "5 atom types\n"
+	text[3] = "4 atom types\n"
 	text[7] = "2 angle types\n"
 
 	if extend_boundary:
@@ -45,7 +46,8 @@ def generate_stiff(sl: int, molecule_folder, molecule_file, output_path, force =
 	if overwrite_accessible:
 		text.insert(18, "5 1\n")
 	else:
-		text.insert(18, "4 1\n")
+		pass
+		# text.insert(18, "4 1\n")
 
 	if not os.path.exists(molecule_folder):
 		os.makedirs(molecule_folder)
@@ -58,7 +60,7 @@ def generate_stiff(sl: int, molecule_folder, molecule_file, output_path, force =
 
 	# centre the stiff region
 	if len(pattern):
-		stiff_start, stiff_end, build_str = parse_pattern(sl, pattern)	
+		stiff_start, stiff_end, build_str = parse_pattern(sl, pattern, lpol = 1000)	
 
 	else:
 		stiff_start = int((lpol - sl)/2 + 1) # if sl = 0, this is 501
@@ -77,7 +79,7 @@ def generate_stiff(sl: int, molecule_folder, molecule_file, output_path, force =
 		if read_flag and len(line.strip()):
 			_data = line.split(" ")
 			_id = int(_data[0])
-			if _id in range(stiff_start, stiff_end):
+			if _id in range(stiff_start, stiff_end + 1):
 				if build_str[_id - stiff_start] == "o":
 					_data[2] = str(NEW_ATOM_O) 
 				elif build_str[_id - stiff_start] == "x":
@@ -95,7 +97,7 @@ def generate_stiff(sl: int, molecule_folder, molecule_file, output_path, force =
 		if read_flag and len(line.strip()):
 			_data = line.split(" ")
 			build_index = int(_data[-2].strip()) - stiff_start
-			if all([int(_data[j].strip()) in range(stiff_start, stiff_end) for j in [-1, -2, -3]]):
+			if all([int(_data[j].strip()) in range(stiff_start, stiff_end+1) for j in [-1, -2, -3]]):
 				if all([build_str[int(_data[j].strip()) - stiff_start] == "o" for j in [-1, -2, -3]]):
 					_data[1] = str(NEW_ANGLE)
 			angle_data.append(" ".join(_data))
