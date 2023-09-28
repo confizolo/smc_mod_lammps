@@ -68,7 +68,7 @@ def worker(pos_file, trj_file, params):
 
 
 	CUTOFF = params["grab_cutoff"] # can infer from parameter set
-	pattern = params["pattern"]
+	pattern = "{:.1f}".format(params["pattern"])
 	n_stiff = params["n_stiff"]
 
 	stiff_start, stiff_end, build_str = parse_pattern(n_stiff, pattern)
