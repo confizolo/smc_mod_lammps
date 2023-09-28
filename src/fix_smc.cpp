@@ -443,9 +443,6 @@ void FixSMC::post_integrate() {
         l_flag = 0;
         t_flag = 0;
 
-        if ((hing[i] + temphdir) > 1000){
-          continue;
-        }
 
         // Check if the SMCs' ends are moving over the polymer ends
         if (hdir / (abs(hdir)) < 0) {
