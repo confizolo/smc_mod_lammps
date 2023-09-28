@@ -3,7 +3,7 @@
 # Introduction 
 The following repository contains code related to the development of a Fix for LAMMPS for loop extruding proteins (see [here](10.7554/eLife.14864), [here](10.1016/j.bpj.2021.11.015) and [here](10.1016/j.celrep.2016.04.085) for reference). Development started in 11/22 and based on LAMMPS(23 Jun 2022 - Update 3)(source [here](https:-github.com/lammps/lammps/commit/88c8b6ec6feac6740d140393a0d409437f637f8b)).
 
-The goal of this code is to introduce an easy and parallelised way to deploy and run loop extrusion on solution of polymers. To do so we developed a custom fix for LAMMPS that allows loop extrusion through moving bonds (see details [here](paper)).
+The goal of this code is to introduce an easy and parallelised way to deploy and run loop extrusion on solution of polymers. To do so we developed a custom fix for LAMMPS that allows loop extrusion through moving bonds.
 
 # Repository structure 
 - initfiles: contains sample datafiles to run tests
@@ -13,7 +13,7 @@ The goal of this code is to introduce an easy and parallelised way to deploy and
 # How to run Fix SMC
 The fix can be added to a regular LAMMPS script, by adding the following line with adequate parameters.
 
-fix "fixname" "considered beads" smc "par1" "par2" "par3" "par4" "par5" "par6" "par7" "par8" "par9" "par10" "par11" "par12" "par13" "par14" "par15" "par16"
+fix "fixname" "considered beads" smc "par1" ......
 
 1. nevery: Attempt the jump every nevery iteration
 2. seed: seed for random number draw
@@ -32,9 +32,10 @@ fix "fixname" "considered beads" smc "par1" "par2" "par3" "par4" "par5" "par6" "
     1.  "random": deploys randomly the SMCs
     2.  "distributed": assign at least one SMC per polymer and then distribute remaining randomly
     3.  "full-distributed": distributes evenly SMCs over the polymers
+    4. "fixed": assign SMCs' initial positions according to the filename defined at 18.
 15.  kon: probability to load a free extruder every nevery step
 16.  koff: probability to unload an extruder every nevery step
-17.  debug: any number different from 0 activate debug mode with detailed report on log_fix_smc.txt
+17.  debug (optional): any number different from 0 activate debug mode with detailed report on log_fix_smc.txt
 18.  fixFname: file containing hinge and anchor position list separated by a space (optional)
 19.  blockbeads: type of beads that the extruder cannot grab, can be listed as an arbitrary long list (e.g.: 2 3 4 ...) (optional)
 
@@ -49,5 +50,6 @@ fix "fixname" "considered beads" dumpsmc "par1" "par2" "par3" "par4"
 
 # Warnings
 
-- At the current status SMCs can only be deployed all together at timestep 1 of simulation
+- At the current status SMCs can only be deployed all together at timestep 1 of simulation.
 - Simulations containing beads not belonging to polymers to extrude CAN'T be used given the depolyment algorithm for SMCs
+- Extrusion is not possible for solutions of non monodisperse polymers

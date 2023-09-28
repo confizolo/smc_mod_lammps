@@ -105,12 +105,12 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     //    1.  "random": deploys randomly the SMCs
     //    2.  "distributed": assign at least one SMC per polymer and then distribute remaining randomly
     //    3.  "full-distributed": distributes evenly SMCs over the polymers
-    //    4.  "fixed": assign SMCs' initial positions according to the filename defined at 19.
+    //    4.  "fixed": assign SMCs' initial positions according to the filename defined at 21.
     // 18. kon: probability to load a free extruder every nevery step
     // 19. koff: probability to unload an extruder every nevery step
-    // 20. debug: activate debug mode with detailed report on log_fix_smc.txt
+    // 20. debug (optional): activate debug mode with detailed report on log_fix_smc.txt
     // 21. fixFname: file containing hinge and anchor position list separated by a space (optional)
-    // 21/22. blockbeads: type of beads that the extruder cannot grab, can be listed as an arbitrary long list (e.g.: 2 3 4 ...) (optional)
+    // 22. blockbeads: type of beads that the extruder cannot grab, can be listed as an arbitrary long list (e.g.: 2 3 4 ...) (optional)
 
     // Check on the number of arguments given to the fix
     if (narg < 19) error -> all(FLERR, "Illegal fix smc command");
@@ -742,7 +742,7 @@ void FixSMC::load_smc(long i) {
 }
 
 /*--------------*/
-/*Place i-th SMC*/
+/*Place SMC anchor and hinge*/
 /*--------------*/
 void FixSMC::place_smc(long a, long h, bool newsmc) {
   long mhi;
@@ -785,7 +785,7 @@ void FixSMC::place_smc(long a, long h, bool newsmc) {
 }
 
 /*--------------*/
-/*Remove i-th SMC*/
+/*Remove SMC anchor and hinge*/
 /*--------------*/
 void FixSMC::remove_smc(long a, long h) {
   long mhi;
