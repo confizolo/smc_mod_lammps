@@ -12,7 +12,7 @@
 ------------------------------------------------------------------------- */
 
 /* ----------------------------------------------------------------------
-   Contributing authors: Filippo Conforto
+   Contributing authors: Filippo Conforto (s2469797@ed.ac.uk), Choong Zheng Yang (zchoong001@e.ntu.edu.sg)
 ------------------------------------------------------------------------- */
 #ifdef FIX_CLASS
 // clang-format off
@@ -24,6 +24,8 @@ FixStyle(smc,FixSMC);
 #define LMP_FIX_SMC_H
 
 #include "fix.h"
+#include <string>
+#include <fstream>
 
 namespace LAMMPS_NS
 {
@@ -47,15 +49,20 @@ namespace LAMMPS_NS
       void load_smc(long);
       void place_smc(long, long, bool);
       void remove_smc(long, long);
+      std::array<double, 3> compute_xyz(long);
+      void debug_pre(int);
+      void debug_post(int, bool, bool, bool, bool, bool, double, double);
 
    private:
       long *anch, *hing, *av_list;
       long num_avl;
-      int seed, smctype, smcbtype, smcbitype, lpol, adir, hdir, smcnum, initmode, ring;
-      double prob, cutoff, kon, koff;
-      double *xyzanch, *xyzhing;
+      int seed, smctype, smcbtype, smcbitype, lpol, maxadir, maxhdir, adir, hdir, smcnum, initmode, ring, nblockt;
+      int *blockt;
+      double prob, cutoff, tancoff, kon, koff;
       bool debug;
+      std::ofstream debugfile;
       class RanPark *random_equal;
+      std::string fixFname;
    };
 
 } // namespace LAMMPS_NS

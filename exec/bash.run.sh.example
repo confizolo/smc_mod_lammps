@@ -3,7 +3,7 @@ LAMMPSparallel=""
 
 lscript="test.lammps.example"
 
-ncpu=6
+ncpu=1
 
 cwd=`pwd`
  

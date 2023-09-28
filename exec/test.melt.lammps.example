@@ -51,21 +51,21 @@ neigh_modify every 1 delay 1 check yes
 
 read_data ../initfiles/melt.dat extra/bond/per/atom 2
 
-######################################
-####	PAIRS -- REPULSIVE 	#######
-######################################
-pair_style lj/cut 1.12246
-pair_modify     shift yes
-pair_coeff      * * 1.0 1.0 1.12246
+####################################
+####    PAIR INTERACTIONS    #######
+####################################
+pair_style   lj/cut 1.12246
+pair_modify  shift yes
+pair_coeff   * * 1.0 1.0 1.12246 # purely repulsive
 
 ####################################
 ####    FENE BONDS           #######
 ####################################
 bond_style hybrid fene harmonic
 special_bonds fene
-bond_coeff   1 fene  30.0   1.5  1.0  1.0
-bond_coeff   2 harmonic 100 1.1
-bond_coeff   3 fene  10.0   1.7  1.0  1.0
+bond_coeff   1 fene  30.0   1.5  1.0  1.12246 # K (scaling), R_0 (maximum extent), E_0, r_0 (LJ potential minimum)
+bond_coeff   2 harmonic 100 1.1 # K, r_0 = equilibrium length, which is quite small
+bond_coeff   3 fene  10.0  1.7 1.0  1.12246
 
 ####################################
 ####	ANGLE	             #######
