@@ -113,6 +113,8 @@ def worker(pos_file, trj_file, params):
 				_data[-1] += 1
 		df.loc[len(df.index)] = _data
 
+	df = df.replace(0, np.nan,)
+
 	df["middle_pct"] = (df["n_middle"]) / (df["n_middle"] + df["n_after"])
 
 	return df
