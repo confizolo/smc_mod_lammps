@@ -96,7 +96,7 @@ variable nsmc equal 5000
 timestep 0.01
 fix 1 all nve  
 fix 2 all langevin   ${Temp} ${Temp} ${tdamp}  ${seedthermo}
-fix smcrun all smc ${rate} 213312 ${prob} ${lpol} linear -1 1 ${nsmc} 2 2 2 ${cutoff} distributed 1 0.00001
+fix smcrun all smc ${rate} 213312 ${prob} ${lpol} linear -1 1 ${nsmc} 2 2 2 ${cutoff} fixed 1 0.00001
 fix smcdump all dumpsmc 1000 ${nsmc} smcpos smcrun
 
 #Useful commands when running in parallel

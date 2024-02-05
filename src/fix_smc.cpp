@@ -106,7 +106,7 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     //    1.  "random": deploys randomly the SMCs
     //    2.  "distributed": assign at least one SMC per polymer and then distribute remaining randomly
     //    3.  "full-distributed": distributes evenly SMCs over the polymers
-    //    4.  "fixed": assign SMCs' initial positions according to the filename defined at 21.
+    //    4.  "fixed": assign SMCs' initial positions according to the filename defined at 23.
     // 19. kon: probability to load a free extruder every nevery step
     // 20. koff: probability to unload an extruder every nevery step
     // 21. patches: number of patches per bead to recolor (type associated is smctype + 1)
@@ -393,6 +393,7 @@ void FixSMC::post_integrate() {
           load_smc(i);
           debug_pre(i);
           place_smc(anch[i],hing[i],true);
+          MPI_Barrier(world);
           debug_post(i,0,0,0,0,0,0,0);
         }
       }
@@ -400,6 +401,7 @@ void FixSMC::post_integrate() {
         if (lrand < koff) {
           debug_pre(i);
           remove_smc(anch[i],hing[i]);
+          MPI_Barrier(world);
           debug_post(i,0,0,0,0,0,0,0);
           anch[i]=-1;
           hing[i]=-1;
@@ -418,6 +420,7 @@ void FixSMC::post_integrate() {
       // First accept the move with a certain probability prob
       if (rand > prob) {
         debug_pre(i);
+        MPI_Barrier(world);
         debug_post(i,1,0,0,0,0,0,0);
         continue;
       }
@@ -477,6 +480,7 @@ void FixSMC::post_integrate() {
       // Skip movement if both the ends are not moving
       if ((tempadir == 0) && (temphdir == 0)) {
         debug_pre(i);
+        MPI_Barrier(world);
         debug_post(i,1,0,0,0,0,0,0);
         continue;
       }
@@ -500,6 +504,7 @@ void FixSMC::post_integrate() {
       // Interrup internal l_sample loop
       if (flag) {
         debug_pre(i);
+        MPI_Barrier(world);
         debug_post(i,0,1,0,0,0,0,0);
         continue;
       }
@@ -521,6 +526,7 @@ void FixSMC::post_integrate() {
       MPI_Barrier(world);
       if ((tempadir == 0) && (temphdir == 0)) {
         debug_pre(i);
+        MPI_Barrier(world);
         debug_post(i,0,0,1,0,0,0,0);
         continue;
       }
@@ -552,6 +558,7 @@ void FixSMC::post_integrate() {
       if (dist > cutoff) {
         // Debug print if got rejected because of distance between beads
         debug_pre(i);
+        MPI_Barrier(world);
         debug_post(i,0,0,0,1,0,dist,tan);
         continue;
       }
@@ -560,19 +567,21 @@ void FixSMC::post_integrate() {
       if (tan < tancoff) {
         // Debug print if got rejected because of tangent product value
         debug_pre(i);
+        MPI_Barrier(world);
         debug_post(i,0,0,0,0,1,dist,tan);
         continue;
       }
 
     // If found a suitable new pair of beads and move the bond
     remove_smc(anch[i], hing[i]);
+    debug_pre(i);
+
     place_smc((anch[i] + tempadir), (hing[i] + temphdir), false);
     anch[i] += tempadir;
     hing[i] += temphdir;
 
-    debug_pre(i);
     debug_post(i,0,0,0,0,0,dist,tan);
-    
+
     // Barrier to check that each processor has defined correctly each smc
     MPI_Barrier(world);
 
@@ -914,21 +923,26 @@ void FixSMC::debug_pre(int i){
   int flag1 = 1;
   int flag2 = 1;
   
+  long idhi = atom -> map(map_to_beads(hing[i]));
+  long idan = atom -> map(map_to_beads(anch[i]));
+  
   for (int nproc = 0; nproc < comm->nprocs; nproc++){
-    if ((debug) && (atom->map(map_to_beads(anch[i])) >= 0) && (comm->me==nproc) && flag1) {
+    if ((debug) && (idan >= 0) && (idan < atom->nlocal) && (comm->me==nproc) && flag1) {
       debugfile.open("log_fix_smc.txt", std::ios_base::app);
-      debugfile<<update -> ntimestep<<","<<comm->me<<","<<i<<","<<map_to_beads(anch[i])<<","<<atom->type[atom->map(map_to_beads(anch[i]))]<<",";
+      debugfile<<update -> ntimestep<<","<<comm->me<<","<<i<<","<<map_to_beads(anch[i])<<","<<atom->type[idan]<<",";
       debugfile.close();
       flag1 = 0;
     }
-    if ((debug) && (atom->map(map_to_beads(hing[i])) >= 0) && (comm->me==nproc) && flag2) {
+    MPI_Bcast(&flag1,1,MPI_INT,nproc,world);
+    MPI_Barrier(world);
+
+    if ((debug) && (idhi >= 0) && (idhi < atom->nlocal) && (comm->me==nproc) && flag2) {
       debugfile.open("log_fix_smc.txt", std::ios_base::app);
-      debugfile<<map_to_beads(hing[i])<<","<<atom->type[atom->map(map_to_beads(hing[i]))]<<",";
+      debugfile<<map_to_beads(hing[i])<<","<<atom->type[idhi]<<",";
       debugfile.close();
       flag2 = 0;
     }  
 
-    MPI_Bcast(&flag1,1,MPI_INT,nproc,world);
     MPI_Bcast(&flag2,1,MPI_INT,nproc,world);
     MPI_Barrier(world);
   }
@@ -941,21 +955,26 @@ void FixSMC::debug_post(int i, bool err1, bool err2, bool err3, bool err4, bool 
   int flag1 = 1;
   int flag2 = 1;
 
+  long idhi = atom -> map(map_to_beads(hing[i]));
+  long idan = atom -> map(map_to_beads(anch[i]));
+
   for (int nproc = 0; nproc < comm->nprocs; nproc++){
-    if ((debug) && (atom->map(map_to_beads(anch[i])) >= 0) && (comm->me==nproc) && flag1) {
+    if ((debug) && (idan >= 0) && (idan < atom->nlocal) && (comm->me==nproc) && flag1) {
       debugfile.open("log_fix_smc.txt", std::ios_base::app);
-      debugfile<<map_to_beads(anch[i])<<","<<atom->type[atom->map(map_to_beads(anch[i]))]<<",";
+      debugfile<<map_to_beads(anch[i])<<","<<atom->type[idan]<<",";
       debugfile.close();
       flag1 = 0;
     }
-    if ((debug) && (atom->map(map_to_beads(hing[i])) >= 0) && (comm->me==nproc)  && flag2) {
+    MPI_Bcast(&flag1,1,MPI_INT,nproc,world);
+    MPI_Barrier(world);
+
+    if ((debug) && (idhi >= 0) && (idhi < atom->nlocal) && (comm->me==nproc)  && flag2) {
       debugfile.open("log_fix_smc.txt", std::ios_base::app);
-      debugfile<<map_to_beads(hing[i])<<","<<atom->type[atom->map(map_to_beads(hing[i]))]<<","<<err1<<","<<err2<<","<<err3<<","<<err4<<","<<err5<<","<<dist<<","<<tan<<std::endl;
+      debugfile<<map_to_beads(hing[i])<<","<<atom->type[idhi]<<","<<err1<<","<<err2<<","<<err3<<","<<err4<<","<<err5<<","<<dist<<","<<tan<<std::endl;
       debugfile.close();
       flag2 = 0;
     }
 
-    MPI_Bcast(&flag1,1,MPI_INT,nproc,world);
     MPI_Bcast(&flag2,1,MPI_INT,nproc,world);
     MPI_Barrier(world);
   }
