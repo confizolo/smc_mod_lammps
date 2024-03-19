@@ -94,8 +94,12 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     // 7. lpol: length of polymer(s) in solution
     // 8. solsize: number of atoms belonging to the solution of polymers
     // 9. poltype: select shape of polymer(s) (either "linear" or "ring")
-    // 10. adir: attempted movement of anchor (next attempted atom id: current anchor + adir)
-    // 11. hdir: attempted movement of hinge (next attempted atom id: current hinge + hdir)
+    // 10. mmod: movement mode
+        //    1.  "bi": bidirectional movement of maximum size mmod
+        //    2.  "mo1": monodirectional movement of maximum size mmod
+        //    3.  "mo2": distributes evenly SMCs over the polymers of maximum size -mmod
+        //    4.  "mora": split in half the smcs and assign monodirectional movement in two different directions
+    // 11. msize: movement (maximum) size
     // 12. smcnum: number of deployed SMCs
     // 13. smctype: atom type of beads representing SMCs' ends
     // 14. smcbtype: SMCs' bond type after the first deployment
@@ -153,14 +157,25 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     } else {
       error -> all(FLERR, "Illegal fix smc command, indefinite polymer type");
     }
-
-    // Define movement of SMCs' anchor
-    maxadir = utils::inumeric(FLERR, arg[9], false, lmp);
+    
+    
+    // Define type of extrusion direction
+    if (strcmp(arg[9], "bo") == 0) {
+      dirmode = 0;
+    } else if (strcmp(arg[9], "mo1") == 0) {
+      dirmode = 1;
+    } else if (strcmp(arg[9], "mo2") == 0) {
+      dirmode = 2;
+    } else if (strcmp(arg[9], "mora") == 0) {
+      dirmode = 3;
+    } else {
+      error -> all(FLERR, "Illegal fix smc command, no definite direction");
+    }
 
     // Define maximum movement of SMCs' hinge
-    maxhdir = utils::inumeric(FLERR, arg[10], false, lmp);
+    maxdir = utils::inumeric(FLERR, arg[10], false, lmp);
     
-    if (maxhdir * maxadir > 0) error -> all(FLERR, "Illegal fix smc command, hinge and must not have same direction");
+    if (maxdir < 0) error -> all(FLERR, "Illegal fix smc command, hinge and must not have same direction");
 
     // Define number of SMCs to deploy
     smcnum = utils::inumeric(FLERR, arg[11], false, lmp);
@@ -349,7 +364,7 @@ void FixSMC::post_integrate() {
   else if (update -> ntimestep % nevery == 0){
 
     // If movement is disabled along both directions stop execution
-    if ((maxhdir == 0) && (maxadir == 0)) return;
+    if (maxdir == 0) return;
 
     int mnew;
     int mannew;
@@ -425,28 +440,36 @@ void FixSMC::post_integrate() {
         continue;
       }
 
-      if (maxadir>1){
+      if (maxdir>1){
         if (comm -> me == 0) jrand = random_equal -> uniform();
         MPI_Bcast( & jrand, 1, MPI_DOUBLE, 0, world);
-      }
-
-      if (maxhdir>1){
         if (comm -> me == 0) krand = random_equal -> uniform();
         MPI_Bcast( & krand, 1, MPI_DOUBLE, 0, world);
       }
 
-      if (maxadir == 0){
+      if (maxdir == 0){
         adir = 0;
-      }
-      else {
-        adir = (int)(maxadir * jrand) + (maxadir) / (abs(maxadir));
-      }
-
-      if (maxhdir == 0){
         hdir = 0;
       }
-      else if (maxhdir > 0) {
-        hdir = (int)(maxhdir * krand) + (maxhdir) / (abs(maxhdir));
+      else if (dirmode==0){
+        hdir = (int)(maxdir * krand) + (maxdir) / (abs(maxdir));
+        adir = -((int)(maxdir * jrand) + (maxdir) / (abs(maxdir)));
+      }
+      else if (dirmode==1){
+        hdir = (int)(maxdir * krand) + (maxdir) / (abs(maxdir));
+        adir = 0;
+      }
+      else if (dirmode==2){
+        hdir = 0;
+        adir = -((int)(maxdir * jrand) + (maxdir) / (abs(maxdir)));
+      }
+      else if ((dirmode==3) && (i<smcnum/2)){
+        hdir = (int)(maxdir * krand) + (maxdir) / (abs(maxdir));
+        adir = 0;
+      }
+      else if ((dirmode==3) && (i>=smcnum/2)){
+        hdir = 0;
+        adir = -((int)(maxdir * jrand) + (maxdir) / (abs(maxdir)));
       }
 
       // Temporary direction if the smc is going towards the polymer end or another smc bead
@@ -610,17 +633,19 @@ bool FixSMC::check_avl(long i){
 
   int mnew;
   int mannew;
+  int midnew;
 
   int idnewhi;
   int idnewan;
+  int idnewmid;
 
   // Define hinge position according to movement direction
-  if (maxhdir != 0) tmphing = i + 2 * maxhdir / (abs(maxhdir));
-  else tmphing = i - 2 * (maxadir) / (abs(maxadir));
+  tmphing = i + 2 * maxdir / (abs(maxdir));
 
   idnewhi = atom -> map(map_to_beads(tmphing));
   idnewan = atom -> map(map_to_beads(i));
-  
+  idnewmid = atom -> map(map_to_beads((i+tmphing)/2));
+
   // Define SMC's center
   mdbead = (i + tmphing)/2;
 
@@ -645,6 +670,11 @@ bool FixSMC::check_avl(long i){
   for (int j = 0; j < nblockt ; j++)
     {
       if ((((mannew = idnewan) >= 0) && (idnewan < atom -> nlocal)) && atom -> type[mannew] == blockt[j]) {
+        flag=1; 
+        MPI_Bcast(&flag,1,MPI_INT,comm->me,world); 
+        break;
+      }
+      if ((((midnew = idnewmid) >= 0) && (idnewmid < atom -> nlocal)) && atom -> type[midnew] == blockt[j]) {
         flag=1; 
         MPI_Bcast(&flag,1,MPI_INT,comm->me,world); 
         break;
@@ -717,7 +747,7 @@ void FixSMC::compile_avl_list(){
 void FixSMC::load_smc(long i) {
   compile_avl_list();
 
-  int npol = solsize / (lpol*(npatches+1));
+  int npol = solsize / (lpol*(npatches+1)); 
 
   // Distribute the SMCs in the system, placing at least one for each polymer
   if ((initmode == 1) && (i < npol) && (update -> ntimestep  == 1)) {
@@ -746,10 +776,7 @@ void FixSMC::load_smc(long i) {
 
   if (num_avl == 0) error -> all(FLERR, "Not enough space for the smcs");
 
-  if (maxhdir != 0) hing[i] = anch[i] + 2;
-  else hing[i] = anch[i] - 2 * maxadir / abs(maxadir);
-
-  MPI_Barrier(world);
+  hing[i] = anch[i] + 2;
 
   // Cast the chosen position to each processor
   MPI_Bcast(anch, smcnum, MPI_LONG, 0, world);
