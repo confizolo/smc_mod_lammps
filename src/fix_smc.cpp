@@ -435,7 +435,6 @@ void FixSMC::post_integrate() {
       // First accept the move with a certain probability prob
       if (rand > prob) {
         debug_pre(i);
-        MPI_Barrier(world);
         debug_post(i,1,0,0,0,0,0,0);
         continue;
       }
@@ -477,7 +476,7 @@ void FixSMC::post_integrate() {
       temphdir = hdir;
 
       // Check if the SMCs' ends are moving over the polymer ends
-      if (hdir / (abs(hdir)) < 0) {
+      if (hdir < 0) {
         if (((hing[i] + hdir) % (lpol) <= 0) || (((hing[i] + hdir) / (lpol)) != ((hing[i]) / (lpol))) || ((hing[i] + hdir) > solsize)){
           if (!ring) temphdir = 0;
           else temphdir = (hing[i] + hdir) % (lpol) - hing[i];
@@ -488,7 +487,7 @@ void FixSMC::post_integrate() {
           else temphdir = (hing[i] + hdir) % (lpol) - hing[i];
         }
       }
-      if (adir / (abs(adir)) < 0) {
+      if (adir < 0) {
         if (((anch[i] + adir) % (lpol) <= 0) || (((anch[i] + adir) / (lpol)) != ((anch[i]) / (lpol))) || ((anch[i] + adir) > solsize)){
           if (!ring) tempadir = 0;
           else tempadir = (anch[i] + hdir) % (lpol) - anch[i];
@@ -503,7 +502,6 @@ void FixSMC::post_integrate() {
       // Skip movement if both the ends are not moving
       if ((tempadir == 0) && (temphdir == 0)) {
         debug_pre(i);
-        MPI_Barrier(world);
         debug_post(i,1,0,0,0,0,0,0);
         continue;
       }
@@ -527,7 +525,6 @@ void FixSMC::post_integrate() {
       // Interrup internal l_sample loop
       if (flag) {
         debug_pre(i);
-        MPI_Barrier(world);
         debug_post(i,0,1,0,0,0,0,0);
         continue;
       }
@@ -549,7 +546,6 @@ void FixSMC::post_integrate() {
       MPI_Barrier(world);
       if ((tempadir == 0) && (temphdir == 0)) {
         debug_pre(i);
-        MPI_Barrier(world);
         debug_post(i,0,0,1,0,0,0,0);
         continue;
       }
@@ -581,7 +577,6 @@ void FixSMC::post_integrate() {
       if (dist > cutoff) {
         // Debug print if got rejected because of distance between beads
         debug_pre(i);
-        MPI_Barrier(world);
         debug_post(i,0,0,0,1,0,dist,tan);
         continue;
       }
@@ -590,7 +585,6 @@ void FixSMC::post_integrate() {
       if (tan < tancoff) {
         // Debug print if got rejected because of tangent product value
         debug_pre(i);
-        MPI_Barrier(world);
         debug_post(i,0,0,0,0,1,dist,tan);
         continue;
       }
@@ -947,63 +941,70 @@ std::array<double, 3> FixSMC::compute_xyz(long b){
 /*Pre change debug print*/
 /*-----------------------*/
 void FixSMC::debug_pre(int i){
-  int flag1 = 1;
-  int flag2 = 1;
-  
-  long idhi = atom -> map(map_to_beads(hing[i]));
-  long idan = atom -> map(map_to_beads(anch[i]));
-  
-  for (int nproc = 0; nproc < comm->nprocs; nproc++){
-    if ((debug) && (idan >= 0) && (idan < atom->nlocal) && (comm->me==nproc) && flag1) {
-      debugfile.open("log_fix_smc.txt", std::ios_base::app);
-      debugfile<<update -> ntimestep<<","<<comm->me<<","<<i<<","<<map_to_beads(anch[i])<<","<<atom->type[idan]<<",";
-      debugfile.close();
-      flag1 = 0;
+
+  if (debug){
+    int flag1 = 1;
+    int flag2 = 1;
+    
+    long idhi = atom -> map(map_to_beads(hing[i]));
+    long idan = atom -> map(map_to_beads(anch[i]));
+    
+    for (int nproc = 0; nproc < comm->nprocs; nproc++){
+      if ((idan >= 0) && (idan < atom->nlocal) && (comm->me==nproc) && flag1) {
+        debugfile.open("log_fix_smc.txt", std::ios_base::app);
+        debugfile<<update -> ntimestep<<","<<comm->me<<","<<i<<","<<map_to_beads(anch[i])<<","<<atom->type[idan]<<",";
+        debugfile.close();
+        flag1 = 0;
+      }
+      MPI_Bcast(&flag1,1,MPI_INT,nproc,world);
+      MPI_Barrier(world);
+
+      if ((idhi >= 0) && (idhi < atom->nlocal) && (comm->me==nproc) && flag2) {
+        debugfile.open("log_fix_smc.txt", std::ios_base::app);
+        debugfile<<map_to_beads(hing[i])<<","<<atom->type[idhi]<<",";
+        debugfile.close();
+        flag2 = 0;
+      }  
+
+      MPI_Bcast(&flag2,1,MPI_INT,nproc,world);
+      MPI_Barrier(world);
     }
-    MPI_Bcast(&flag1,1,MPI_INT,nproc,world);
-    MPI_Barrier(world);
-
-    if ((debug) && (idhi >= 0) && (idhi < atom->nlocal) && (comm->me==nproc) && flag2) {
-      debugfile.open("log_fix_smc.txt", std::ios_base::app);
-      debugfile<<map_to_beads(hing[i])<<","<<atom->type[idhi]<<",";
-      debugfile.close();
-      flag2 = 0;
-    }  
-
-    MPI_Bcast(&flag2,1,MPI_INT,nproc,world);
-    MPI_Barrier(world);
   }
+
 }
 
 /*-----------------------*/
 /*Post change debug print*/
 /*-----------------------*/
 void FixSMC::debug_post(int i, bool err1, bool err2, bool err3, bool err4, bool err5, double dist, double tan){
-  int flag1 = 1;
-  int flag2 = 1;
+  
+  if (debug){
+    int flag1 = 1;
+    int flag2 = 1;
 
-  long idhi = atom -> map(map_to_beads(hing[i]));
-  long idan = atom -> map(map_to_beads(anch[i]));
+    long idhi = atom -> map(map_to_beads(hing[i]));
+    long idan = atom -> map(map_to_beads(anch[i]));
 
-  for (int nproc = 0; nproc < comm->nprocs; nproc++){
-    if ((debug) && (idan >= 0) && (idan < atom->nlocal) && (comm->me==nproc) && flag1) {
-      debugfile.open("log_fix_smc.txt", std::ios_base::app);
-      debugfile<<map_to_beads(anch[i])<<","<<atom->type[idan]<<",";
-      debugfile.close();
-      flag1 = 0;
+    for (int nproc = 0; nproc < comm->nprocs; nproc++){
+      if ((idan >= 0) && (idan < atom->nlocal) && (comm->me==nproc) && flag1) {
+        debugfile.open("log_fix_smc.txt", std::ios_base::app);
+        debugfile<<map_to_beads(anch[i])<<","<<atom->type[idan]<<",";
+        debugfile.close();
+        flag1 = 0;
+      }
+      MPI_Bcast(&flag1,1,MPI_INT,nproc,world);
+      MPI_Barrier(world);
+
+      if ((idhi >= 0) && (idhi < atom->nlocal) && (comm->me==nproc)  && flag2) {
+        debugfile.open("log_fix_smc.txt", std::ios_base::app);
+        debugfile<<map_to_beads(hing[i])<<","<<atom->type[idhi]<<","<<err1<<","<<err2<<","<<err3<<","<<err4<<","<<err5<<","<<dist<<","<<tan<<std::endl;
+        debugfile.close();
+        flag2 = 0;
+      }
+
+      MPI_Bcast(&flag2,1,MPI_INT,nproc,world);
+      MPI_Barrier(world);
     }
-    MPI_Bcast(&flag1,1,MPI_INT,nproc,world);
-    MPI_Barrier(world);
-
-    if ((debug) && (idhi >= 0) && (idhi < atom->nlocal) && (comm->me==nproc)  && flag2) {
-      debugfile.open("log_fix_smc.txt", std::ios_base::app);
-      debugfile<<map_to_beads(hing[i])<<","<<atom->type[idhi]<<","<<err1<<","<<err2<<","<<err3<<","<<err4<<","<<err5<<","<<dist<<","<<tan<<std::endl;
-      debugfile.close();
-      flag2 = 0;
-    }
-
-    MPI_Bcast(&flag2,1,MPI_INT,nproc,world);
-    MPI_Barrier(world);
   }
 }
 /*------------------------------------*/
