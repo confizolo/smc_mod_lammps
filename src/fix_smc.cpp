@@ -1045,6 +1045,12 @@ void FixSMC::place_smc(long a, long h, bool newsmc) {
     }
   }
 
+  if (npatches>=1){
+    smc_angle(map_to_beads(h)+1,map_to_beads(h),map_to_beads(a),atype);
+
+    smc_angle(map_to_beads(a)+1,map_to_beads(a),map_to_beads(h),atype);
+  }
+
   // Recoloring patches
   for (int c = 1; c <= npatches; c++)
   {
@@ -1072,10 +1078,6 @@ void FixSMC::remove_smc(long a, long h) {
   long idhi = atom -> map(map_to_beads(h));
   long idan = atom -> map(map_to_beads(a));
 
-  // Get bond histories to apply bond changes
-  auto histories = modify -> get_fix_by_style("BOND_HISTORY");
-  int n_histories = histories.size();
-
   // Changing type of the old anchor
   if (((man = idan) >= 0) && (idan < atom -> nlocal)) {
     atom -> type[man] = 1;
@@ -1086,6 +1088,13 @@ void FixSMC::remove_smc(long a, long h) {
     atom -> type[mhi] = 1;
   }
 
+  rm_smc_bond(map_to_beads(h),map_to_beads(a));
+
+  if (npatches>=1){
+    rm_smc_angle(map_to_beads(h)+1,map_to_beads(h),map_to_beads(a));
+
+    rm_smc_angle(map_to_beads(a)+1,map_to_beads(a),map_to_beads(h));
+  }
   // Recoloring patches
   for (int c = 1; c <= npatches; c++)
   {
