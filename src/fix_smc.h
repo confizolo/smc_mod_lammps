@@ -48,6 +48,10 @@ namespace LAMMPS_NS
       bool check_avl(long);
       void compile_avl_list();
       void load_smc(long);
+      void smc_bond(long, long, int);
+      void smc_angle(long, long, long, int);
+      void rm_smc_bond(long, long);
+      void rm_smc_angle(long, long, long);
       void place_smc(long, long, bool);
       void remove_smc(long, long);
       std::array<double, 3> compute_xyz(long);
@@ -57,7 +61,7 @@ namespace LAMMPS_NS
    private:
       long *anch, *hing, *av_list;
       long num_avl, solsize;
-      int seed, smctype, smcbtype, smcbitype, lpol, dirmode, maxdir, adir, hdir, smcnum, initmode, ring, nblockt, npatches;
+      int seed, atype, smctype, smcbtype, smcbitype, lpol, dirmode, maxdir, adir, hdir, smcnum, initmode, ring, nblockt, npatches;
       int *blockt;
       double prob, cutoff, tancoff, kon, koff;
       bool debug;
