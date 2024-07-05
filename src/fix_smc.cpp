@@ -968,10 +968,10 @@ void FixSMC::rm_smc_angle(long aatom1, long aatom2, long aatom3){
   tagint **angle_atom2 = atom->angle_atom2;
   tagint **angle_atom3 = atom->angle_atom3;
   
-  int m = idx1;
+  int m = idx2;
 
   if ((m >= 0) && (m < atom -> nlocal)) {
-    for (int i = 0; i < atom -> num_angle[m]; i++) {
+    for (int i = 0; i < atom->angle_per_atom; i++) {
       if (atom->angle_type[m][i] == atype) {
         int n = atom->num_angle[m];
         atom->angle_type[m][i] = atom->angle_type[m][n-1];
@@ -985,10 +985,10 @@ void FixSMC::rm_smc_angle(long aatom1, long aatom2, long aatom3){
 
   if (force->newton_bond) return;
 
-  m = idx2;
+  m = idx1;
 
   if ((m >= 0) && (m < atom -> nlocal)) {
-    for (int i = 0; i < atom -> num_angle[m]; i++) {
+    for (int i = 0; i < atom->angle_per_atom; i++) {
       if (atom->angle_type[m][i] == atype) {
         int n = atom->num_angle[m];
         atom->angle_type[m][i] = atom->angle_type[m][n-1];
@@ -1003,7 +1003,7 @@ void FixSMC::rm_smc_angle(long aatom1, long aatom2, long aatom3){
   m = idx3;
 
   if ((m >= 0) && (m < atom -> nlocal)) {
-    for (int i = 0; i < atom -> num_angle[m]; i++) {
+    for (int i = 0; i < atom->angle_per_atom; i++) {
       if (atom->angle_type[m][i] == atype) {
         int n = atom->num_angle[m];
         atom->angle_type[m][i] = atom->angle_type[m][n-1];
@@ -1035,21 +1035,21 @@ void FixSMC::place_smc(long a, long h, bool newsmc) {
   if (((mhi = idhi) >= 0) && (idhi < atom -> nlocal)) {
     // Changing type of new hing
     atom -> type[mhi] = smctype;
-
-    // Creating new SMC bond
-    if (newsmc){
-      smc_bond(map_to_beads(h), map_to_beads(a),smcbitype);
-    }
-    else {
-      smc_bond(map_to_beads(h), map_to_beads(a),smcbtype);
-    }
   }
 
-  if (npatches>=1){
-    smc_angle(map_to_beads(h)+1,map_to_beads(h),map_to_beads(a),atype);
-
-    smc_angle(map_to_beads(a)+1,map_to_beads(a),map_to_beads(h),atype);
+  // Creating new SMC bond
+  if (newsmc){
+    smc_bond(map_to_beads(h), map_to_beads(a),smcbitype);
   }
+  else {
+    smc_bond(map_to_beads(h), map_to_beads(a),smcbtype);
+  }
+
+  // if (npatches>=1){
+  //   smc_angle(map_to_beads(h)+1,map_to_beads(h),map_to_beads(a),atype);
+
+  //   smc_angle(map_to_beads(a)+1,map_to_beads(a),map_to_beads(h),atype);
+  // }
 
   // Recoloring patches
   for (int c = 1; c <= npatches; c++)
@@ -1062,7 +1062,7 @@ void FixSMC::place_smc(long a, long h, bool newsmc) {
     }
 
     if (((mhi = idhipc) >= 0) && (idhipc < atom -> nlocal)) {
-      atom -> type[mhi] = smctype + 1;
+      atom -> type[mhi] = smctype + 2;
     }
   }
 
@@ -1090,11 +1090,12 @@ void FixSMC::remove_smc(long a, long h) {
 
   rm_smc_bond(map_to_beads(h),map_to_beads(a));
 
-  if (npatches>=1){
-    rm_smc_angle(map_to_beads(h)+1,map_to_beads(h),map_to_beads(a));
+  // if (npatches>=1){
+  //   rm_smc_angle(map_to_beads(h)+1,map_to_beads(h),map_to_beads(a));
 
-    rm_smc_angle(map_to_beads(a)+1,map_to_beads(a),map_to_beads(h));
-  }
+  //   rm_smc_angle(map_to_beads(a)+1,map_to_beads(a),map_to_beads(h));
+  // }
+
   // Recoloring patches
   for (int c = 1; c <= npatches; c++)
   {
