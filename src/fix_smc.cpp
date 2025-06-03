@@ -92,25 +92,31 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     // 5. seed: seed for random number draw
     // 6. prob: probability to accept proposed movement
     // 7. lpol: length of polymer(s) in solution
-    // 8. poltype: select shape of polymer(s) (either "linear" or "ring")
-    // 9. adir: attempted movement of anchor (next attempted atom id: current anchor + adir)
-    // 10. hdir: attempted movement of hinge (next attempted atom id: current hinge + hdir)
-    // 11. smcnum: number of deployed SMCs
-    // 12. smctype: atom type of beads representing SMCs' ends
-    // 13. smcbtype: SMCs' bond type after the first deployment
-    // 14. smcbitype: SMCs' bond type at the first deployment
-    // 15. cutoff: distance cutoff for attempted movements (these are accepted only if distance between new anchor and hinge is below the cutoff)
-    // 16. tancoff: tangent cutoff for attempted movements (these are accepted only if scalar product of the tangents is smaller than this value)
-    // 17. initmode: define initialisation mode of extruders:
+    // 8. solsize: number of atoms belonging to the solution of polymers
+    // 9. poltype: select shape of polymer(s) (either "linear" or "ring")
+    // 10. mmod: movement mode
+        //    1.  "bi": bidirectional movement of maximum size mmod
+        //    2.  "mo1": monodirectional movement of maximum size mmod
+        //    3.  "mo2": distributes evenly SMCs over the polymers of maximum size -mmod
+        //    4.  "mora": split in half the smcs and assign monodirectional movement in two different directions
+    // 11. msize: movement (maximum) size
+    // 12. smcnum: number of deployed SMCs
+    // 13. smctype: atom type of beads representing SMCs' ends
+    // 14. smcbtype: SMCs' bond type after the first deployment
+    // 15. smcbitype: SMCs' bond type at the first deployment
+    // 16. cutoff: distance cutoff for attempted movements (these are accepted only if distance between new anchor and hinge is below the cutoff)
+    // 17. tancoff: tangent cutoff for attempted movements (these are accepted only if scalar product of the tangents is smaller than this value)
+    // 18. initmode: define initialisation mode of extruders:
     //    1.  "random": deploys randomly the SMCs
     //    2.  "distributed": assign at least one SMC per polymer and then distribute remaining randomly
     //    3.  "full-distributed": distributes evenly SMCs over the polymers
-    //    4.  "fixed": assign SMCs' initial positions according to the filename defined at 21.
-    // 18. kon: probability to load a free extruder every nevery step
-    // 19. koff: probability to unload an extruder every nevery step
-    // 20. debug (optional): activate debug mode with detailed report on log_fix_smc.txt
-    // 21. fixFname: file containing hinge and anchor position list separated by a space (optional)
-    // 22. blockbeads: type of beads that the extruder cannot grab, can be listed as an arbitrary long list (e.g.: 2 3 4 ...) (optional)
+    //    4.  "fixed": assign SMCs' initial positions according to the filename defined at 23.
+    // 19. kon: probability to load a free extruder every nevery step
+    // 20. koff: probability to unload an extruder every nevery step
+    // 21. patches: number of patches per bead to recolor (type associated is smctype + 1)
+    // 22. debug: activate debug mode with detailed report on log_fix_smc.txt
+    // 23. fixFname: file containing hinge and anchor position list separated by a space (optional)
+    // 24. blockbeads: type of beads that the extruder cannot grab, can be listed as an arbitrary long list (e.g.: 2 3 4 ...) (optional)
 
     // Check on the number of arguments given to the fix
     if (narg < 19) error -> all(FLERR, "Illegal fix smc command");
@@ -138,81 +144,105 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     lpol = utils::inumeric(FLERR, arg[6], false, lmp);
     if (lpol <= 0) error -> all(FLERR, "Illegal fix smc command");
 
+    // Define size of the solution in number of beads
+    solsize = utils::inumeric(FLERR, arg[7], false, lmp);
+    if (solsize < 0)
+      error -> all(FLERR, "Illegal fix smc command, number of beads smaller than 0");
+
     // Define type of extrusion according to the kind of polymer(s) present in simulation
-    if (strcmp(arg[7], "linear") == 0) {
+    if (strcmp(arg[8], "linear") == 0) {
       ring = 0;
-    } else if (strcmp(arg[7], "ring") == 0) {
+    } else if (strcmp(arg[8], "ring") == 0) {
       ring = 1;
     } else {
       error -> all(FLERR, "Illegal fix smc command, indefinite polymer type");
     }
-
-    // Define movement of SMCs' anchor
-    maxadir = utils::inumeric(FLERR, arg[8], false, lmp);
+    
+    
+    // Define type of extrusion direction
+    if (strcmp(arg[9], "bo") == 0) {
+      dirmode = 0;
+    } else if (strcmp(arg[9], "mo1") == 0) {
+      dirmode = 1;
+    } else if (strcmp(arg[9], "mo2") == 0) {
+      dirmode = 2;
+    } else if (strcmp(arg[9], "mora") == 0) {
+      dirmode = 3;
+    } else {
+      error -> all(FLERR, "Illegal fix smc command, no definite direction");
+    }
 
     // Define maximum movement of SMCs' hinge
-    maxhdir = utils::inumeric(FLERR, arg[9], false, lmp);
+    maxdir = utils::inumeric(FLERR, arg[10], false, lmp);
     
-    if (maxhdir * maxadir > 0) error -> all(FLERR, "Illegal fix smc command, hinge and must not have same direction");
+    if (maxdir < 0) error -> all(FLERR, "Illegal fix smc command, hinge and must not have same direction");
 
     // Define number of SMCs to deploy
-    smcnum = utils::inumeric(FLERR, arg[10], false, lmp);
+    smcnum = utils::inumeric(FLERR, arg[11], false, lmp);
     if (smcnum <= 0) error -> all(FLERR, "Illegal fix smc command");
 
     // Define atom type of SMCs' ends
-    smctype = utils::inumeric(FLERR, arg[11], false, lmp);
+    smctype = utils::inumeric(FLERR, arg[12], false, lmp);
     if (smctype <= 0) error -> all(FLERR, "Illegal fix smc command");
 
     // Define deployment bond type of SMCs
-    smcbtype = utils::inumeric(FLERR, arg[12], false, lmp);
+    smcbtype = utils::inumeric(FLERR, arg[13], false, lmp);
     if (smcbtype <= 0) error -> all(FLERR, "Illegal fix smc command");
 
+    //Define angle type for patches
+    atype=2;
+
     // Define deployment bond type of SMCs after the first movement
-    smcbitype = utils::inumeric(FLERR, arg[13], false, lmp);
+    smcbitype = utils::inumeric(FLERR, arg[14], false, lmp);
     if (smcbitype <= 0) error -> all(FLERR, "Illegal fix smc command");
 
     // Define distance cutoff to be checked before SMCs' movement
-    cutoff = utils::numeric(FLERR, arg[14], false, lmp);
+    cutoff = utils::numeric(FLERR, arg[15], false, lmp);
     if (cutoff < 0)
       error -> all(FLERR, "Illegal cutoff value");
 
     // Define distance cutoff to be checked before SMCs' movement
-    tancoff = utils::numeric(FLERR, arg[15], false, lmp);
+    tancoff = utils::numeric(FLERR, arg[16], false, lmp);
     if (abs(tancoff) > 1)
       error -> all(FLERR, "Illegal tangent cutoff value");
 
     initmode = 0;
 
     // Define init mode for SMCs' deployment 
-    if (strcmp(arg[16], "random") == 0) {
+    if (strcmp(arg[17], "random") == 0) {
       initmode = 0;
-    } else if (strcmp(arg[16], "distributed") == 0) {
+    } else if (strcmp(arg[17], "distributed") == 0) {
       initmode = 1;
-    } else if (strcmp(arg[16], "full-distributed") == 0) {
+    } else if (strcmp(arg[17], "full-distributed") == 0) {
       initmode = 2;
-    } else if (strcmp(arg[16], "fixed") == 0) {
+    } else if (strcmp(arg[17], "fixed") == 0) {
       initmode = 3;
     } else {
       error -> all(FLERR, "Illegal fix smc command, initmode not present");
     }
 
     // Define loading probability of one SMC on simulation polymers
-    kon = utils::numeric(FLERR, arg[17], false, lmp);
+    kon = utils::numeric(FLERR, arg[18], false, lmp);
     if ((kon <= 0) || (kon>1))
       error -> all(FLERR, "Illegal fix smc command, kon is out of the interval (0,1]");
 
     // Define unloading probability of one SMC on simulation polymers
-    koff = utils::numeric(FLERR, arg[18], false, lmp);
+    koff = utils::numeric(FLERR, arg[19], false, lmp);
     if ((koff < 0) || (koff>1))
       error -> all(FLERR, "Illegal fix smc command, koff is out of the interval [0,1]");
 
-    debug = utils::numeric(FLERR, arg[19], false, lmp);
+    // Define number of patches per bead
+    npatches = utils::inumeric(FLERR, arg[20], false, lmp);
+    if (npatches < 0)
+      error -> all(FLERR, "Illegal fix smc command, npatches is smaller than 0");
 
-    int argnum = 20;
+    debug = utils::numeric(FLERR, arg[21], false, lmp);
+
+    int argnum = 22;
 
     if (initmode == 3){  
-      if (narg<21) error -> all(FLERR, "Illegal fix smc command, koff is out of the interval [0,1]");
-      fixFname = arg[20];
+      if (narg<23) error -> all(FLERR, "Illegal fix smc command, smc startfile absent");
+      fixFname = arg[22];
       argnum += 1;
     }
 
@@ -236,7 +266,7 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
       for (int i = 0; i < smcnum; i++) {
         smcfile >> anch[i] >> hing[i];
 
-        if ((hing[i] <= 0) || (anch[i] <= 0) || (hing[i] > atom->natoms) || (anch[i] > atom->natoms))
+        if ((hing[i] <= 0) || (anch[i] <= 0) || (hing[i] > solsize) || (anch[i] > solsize))
         error -> all(FLERR, "Illegal position of hinge or anchor read from file");
       }
     }
@@ -249,7 +279,7 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
 
     // Initialise list of available positions
     av_list = new long[atom->natoms];
-    num_avl = atom->natoms / 4;
+    num_avl = solsize / (4*(npatches+1));
 
     // Initialise seed generator
     random_equal = new RanPark(lmp, seed);
@@ -317,7 +347,7 @@ void FixSMC::post_integrate() {
       MPI_Bcast( & lrand, 1, MPI_DOUBLE, 0, world);
       if (lrand < kon) load_smc(i);
     }
-    
+
     MPI_Barrier(world);
     
     for (int i = 0; i < smcnum; i++) {
@@ -325,8 +355,8 @@ void FixSMC::post_integrate() {
       if ((anch[i]<0) || (hing[i]<0)) continue;
       debug_pre(i);
       place_smc(anch[i],hing[i], true);
-      debug_post(i,0,0,0,0,0,0,0);
       MPI_Barrier(world);
+      debug_post(i,0,0,0,0,0,0,0);
     }
 
     return;
@@ -337,7 +367,7 @@ void FixSMC::post_integrate() {
   else if (update -> ntimestep % nevery == 0){
 
     // If movement is disabled along both directions stop execution
-    if ((maxhdir == 0) && (maxadir == 0)) return;
+    if (maxdir == 0) return;
 
     int mnew;
     int mannew;
@@ -356,12 +386,10 @@ void FixSMC::post_integrate() {
     int idnewan;
     int idan;
 
-    double jrand;
-    double krand;
+    double jrand = 0;
+    double krand = 0;
 
     bool flag = 0;
-    bool l_flag = 0;
-    bool t_flag = 0;
 
     int tempadir = 0;
     int temphdir = 0;
@@ -383,6 +411,7 @@ void FixSMC::post_integrate() {
           load_smc(i);
           debug_pre(i);
           place_smc(anch[i],hing[i],true);
+          MPI_Barrier(world);
           debug_post(i,0,0,0,0,0,0,0);
         }
       }
@@ -390,6 +419,7 @@ void FixSMC::post_integrate() {
         if (lrand < koff) {
           debug_pre(i);
           remove_smc(anch[i],hing[i]);
+          MPI_Barrier(world);
           debug_post(i,0,0,0,0,0,0,0);
           anch[i]=-1;
           hing[i]=-1;
@@ -412,165 +442,165 @@ void FixSMC::post_integrate() {
         continue;
       }
 
-      // for (int l_sample = 0; l_sample < std::max(abs(maxadir), abs(maxhdir)); l_sample ++){
-      for (int l_sample = 0; l_sample < 1; l_sample ++){
-
+      if (maxdir>1){
         if (comm -> me == 0) jrand = random_equal -> uniform();
         MPI_Bcast( & jrand, 1, MPI_DOUBLE, 0, world);
-
         if (comm -> me == 0) krand = random_equal -> uniform();
         MPI_Bcast( & krand, 1, MPI_DOUBLE, 0, world);
+      }
 
-        // Fudge by + 1 is required to not have a divide by zero later on...
+      if (maxdir == 0){
+        adir = 0;
+        hdir = 0;
+      }
+      else if (dirmode==0){
+        hdir = (int)(maxdir * krand) + (maxdir) / (abs(maxdir));
+        adir = -((int)(maxdir * jrand) + (maxdir) / (abs(maxdir)));
+      }
+      else if (dirmode==1){
+        hdir = (int)(maxdir * krand) + (maxdir) / (abs(maxdir));
+        adir = 0;
+      }
+      else if (dirmode==2){
+        hdir = 0;
+        adir = -((int)(maxdir * jrand) + (maxdir) / (abs(maxdir)));
+      }
+      else if ((dirmode==3) && (i<smcnum/2)){
+        hdir = (int)(maxdir * krand) + (maxdir) / (abs(maxdir));
+        adir = 0;
+      }
+      else if ((dirmode==3) && (i>=smcnum/2)){
+        hdir = 0;
+        adir = -((int)(maxdir * jrand) + (maxdir) / (abs(maxdir)));
+      }
 
-        if (maxadir == 0){
-          adir = 0;
+      // Temporary direction if the smc is going towards the polymer end or another smc bead
+      tempadir = adir;
+      temphdir = hdir;
+
+      // Check if the SMCs' ends are moving over the polymer ends
+      if (hdir < 0) {
+        if (((hing[i] + hdir) % (lpol) <= 0) || (((hing[i] + hdir) / (lpol)) != ((hing[i]) / (lpol))) || ((hing[i] + hdir) > solsize)){
+          if (!ring) temphdir = 0;
+          else temphdir = (hing[i] + hdir) % (lpol) - hing[i];
         }
-        else {
-          adir = (int)(maxadir * jrand) + (maxadir) / (abs(maxadir));
+      } else {
+        if (((hing[i] + hdir) / (lpol)) != ((hing[i]) / (lpol)) || ((hing[i] + hdir) > solsize)){
+          if (!ring) temphdir = 0;
+          else temphdir = (hing[i] + hdir) % (lpol) - hing[i];
         }
-        if (maxhdir == 0){
-          hdir = 0;
+      }
+      if (adir < 0) {
+        if (((anch[i] + adir) % (lpol) <= 0) || (((anch[i] + adir) / (lpol)) != ((anch[i]) / (lpol))) || ((anch[i] + adir) > solsize)){
+          if (!ring) tempadir = 0;
+          else tempadir = (anch[i] + hdir) % (lpol) - anch[i];
         }
-        else if (maxhdir > 0) {
-          hdir = (int)(maxhdir * krand) + (maxhdir) / (abs(maxhdir));
+      } else {
+        if (((anch[i] + adir) / lpol) != ((anch[i]) / lpol) || ((anch[i] + adir) > solsize)){
+          if (!ring) tempadir = 0;
+          else tempadir = (anch[i] + hdir) % (lpol) - anch[i];
         }
+      }
 
-        // Temporary direction if the smc is going towards the polymer end or another smc bead
-        tempadir = adir;
-        temphdir = hdir;
+      // Skip movement if both the ends are not moving
+      if ((tempadir == 0) && (temphdir == 0)) {
+        debug_pre(i);
+        debug_post(i,1,0,0,0,0,0,0);
+        continue;
+      }
 
-        l_flag = 0;
-        t_flag = 0;
-
-
-        // Check if the SMCs' ends are moving over the polymer ends
-        if (hdir / (abs(hdir)) < 0) {
-          if (((hing[i] + hdir) % lpol <= 0) || (((hing[i] + hdir) / lpol) != ((hing[i]) / lpol))){
-            if (!ring) temphdir = 0;
-            else temphdir = (hing[i] + hdir) % lpol - hing[i];
-          }
-        } else {
-          if (((hing[i] + hdir) / lpol) != ((hing[i]) / lpol)){
-            if (!ring) temphdir = 0;
-            else temphdir = (hing[i] + hdir) % lpol - hing[i];
-          }
-        }
-        if (adir / (abs(adir)) < 0) {
-          if (((anch[i] + adir) % lpol <= 0) || (((anch[i] + adir) / lpol) != ((anch[i]) / lpol))){
-            if (!ring) tempadir = 0;
-            else tempadir = (anch[i] + hdir) % lpol - anch[i];
-          }
-        } else {
-          if (((anch[i] + adir) / lpol) != ((anch[i]) / lpol)){
-            if (!ring) tempadir = 0;
-            else tempadir = (anch[i] + hdir) % lpol - anch[i];
-          }
-        }
-
-        // Skip movement if both the ends are not moving
-        if ((tempadir == 0) && (temphdir == 0)) {
-          debug_pre(i);
-          debug_post(i,1,0,0,0,0,0,0);
-          continue;
-        }
-
-        // Check if the new movement is forbidden because of superposition of SMCs
-        flag = 0;
-        for (int j = 0; j < smcnum; j++) {
-          if (j == i){
-            if (((anch[i] + tempadir) == (hing[i] + temphdir)) || ((anch[i] + tempadir) == hing[i]) || (anch[i] == (hing[i] + temphdir))){
-              flag=1;
-              break;
-            }
-          } 
-          if ((((anch[i] + tempadir) == anch[j]) || ((anch[i] + tempadir) == hing[j])) && (((hing[i] + temphdir) == hing[j]) || ((hing[i] + temphdir) == anch[j]))) {
-            flag = 1;
+      // Check if the new movement is forbidden because of superposition of SMCs
+      flag = 0;
+      for (int j = 0; j < smcnum; j++) {
+        if (j == i){
+          if (((anch[i] + tempadir) == (hing[i] + temphdir)) || ((anch[i] + tempadir) == hing[i]) || (anch[i] == (hing[i] + temphdir))){
+            flag=1;
             break;
-          } else if (((anch[i] + tempadir) == anch[j]) || ((anch[i] + tempadir) == hing[j])) tempadir = 0;
-          else if (((hing[i] + temphdir) == hing[j]) || ((hing[i] + temphdir) == anch[j])) temphdir = 0;
-        }
-
-        // Interrup internal l_sample loop
-        if (flag) {
-          debug_pre(i);
-          debug_post(i,0,1,0,0,0,0,0);
-          continue;
-        }
-        
-        // Finding local identifiers of the current hinge and anchor
-        idan = atom -> map(anch[i]);
-        idhi = atom -> map(hing[i]);
-      
-        // Finding local identifiers of the proposed new hinge and anchor
-        idnewhi = atom -> map(hing[i] + temphdir);
-        idnewan = atom -> map(anch[i] + tempadir);
-
-        for (int j = 0; j < nblockt ; j++)
-        {
-            if ((((idnewan) >= 0) && (idnewan < atom -> nlocal)) && atom -> type[idnewan] == blockt[j]) {tempadir = 0; MPI_Bcast(&tempadir,1,MPI_INT,comm->me,world);}
-            if ((((idnewhi) >= 0) && (idnewhi < atom -> nlocal)) && atom -> type[idnewhi] == blockt[j]) {temphdir = 0; MPI_Bcast(&temphdir,1,MPI_INT,comm->me,world);}
-        }
-
-        MPI_Barrier(world);
-        if ((tempadir == 0) && (temphdir == 0)) {
-          debug_pre(i);
-          debug_post(i,0,0,1,0,0,0,0);
-          continue;
-        }
-
-        xyzoldanch = compute_xyz(anch[i]);
-        xyzoldhing = compute_xyz(hing[i]);
-        xyzanch = compute_xyz(anch[i]+tempadir);
-        xyzhing = compute_xyz(hing[i]+temphdir);
-
-        olddist = 0;
-        dist = 0;
-        tan = 0;
-
-        //Compute distance and tangent on old and new set of beads
-        for (int k = 0; k < 3; k++) {
-          olddist += (xyzoldanch[k] - xyzoldhing[k]) * (xyzoldanch[k] - xyzoldhing[k]);
-          dist += (xyzanch[k] - xyzhing[k]) * (xyzanch[k] - xyzhing[k]);
-          tan += (xyzoldanch[k] - xyzoldhing[k]) * (xyzanch[k] - xyzhing[k]);
-        }
-
-        olddist = sqrt(olddist);
-        dist = sqrt(dist);
-        tan /= (olddist*dist);
-
-        // Barrier to check that each processor has defined correctly each smc
-        MPI_Barrier(world);
-
-
-        // Check if the distance is small enough to accept the movement
-        if (dist > cutoff) continue;
-        l_flag = 1;
-
-        // Check if the product between the two tangents is smaller than a cutoff
-        if (tan < tancoff) {
-          t_flag = 1;
+          }
+        } 
+        if ((((anch[i] + tempadir) == anch[j]) || ((anch[i] + tempadir) == hing[j])) && (((hing[i] + temphdir) == hing[j]) || ((hing[i] + temphdir) == anch[j]))) {
+          flag = 1;
           break;
-        }
+        } else if (((anch[i] + tempadir) == anch[j]) || ((anch[i] + tempadir) == hing[j])) tempadir = 0;
+        else if (((hing[i] + temphdir) == hing[j]) || ((hing[i] + temphdir) == anch[j])) temphdir = 0;
+      }
 
+      // Interrup internal l_sample loop
+      if (flag) {
+        debug_pre(i);
+        debug_post(i,0,1,0,0,0,0,0);
+        continue;
+      }
+      
+      // Finding local identifiers of the current hinge and anchor
+      idan = atom -> map(map_to_beads(anch[i]));
+      idhi = atom -> map(map_to_beads(hing[i]));
+    
+      // Finding local identifiers of the proposed new hinge and anchor
+      idnewhi = atom -> map(map_to_beads(hing[i] + temphdir));
+      idnewan = atom -> map(map_to_beads(anch[i] + tempadir));
+
+      for (int j = 0; j < nblockt ; j++)
+      {
+          if ((((idnewan) >= 0) && (idnewan < atom -> nlocal)) && atom -> type[idnewan] == blockt[j]) {tempadir = 0; MPI_Bcast(&tempadir,1,MPI_INT,comm->me,world);}
+          if ((((idnewhi) >= 0) && (idnewhi < atom -> nlocal)) && atom -> type[idnewhi] == blockt[j]) {temphdir = 0; MPI_Bcast(&temphdir,1,MPI_INT,comm->me,world);}
+      }
+
+      MPI_Barrier(world);
+      if ((tempadir == 0) && (temphdir == 0)) {
+        debug_pre(i);
+        debug_post(i,0,0,1,0,0,0,0);
+        continue;
+      }
+
+      xyzoldanch = compute_xyz(map_to_beads(anch[i]));
+      xyzoldhing = compute_xyz(map_to_beads(hing[i]));
+      xyzanch = compute_xyz(map_to_beads(anch[i]+tempadir));
+      xyzhing = compute_xyz(map_to_beads(hing[i]+temphdir));
+
+      olddist = 0;
+      dist = 0;
+      tan = 0;
+
+      //Compute distance and tangent on old and new set of beads
+      for (int k = 0; k < 3; k++) {
+        olddist += (xyzoldanch[k] - xyzoldhing[k]) * (xyzoldanch[k] - xyzoldhing[k]);
+        dist += (xyzanch[k] - xyzhing[k]) * (xyzanch[k] - xyzhing[k]);
+        tan += (xyzoldanch[k] - xyzoldhing[k]) * (xyzanch[k] - xyzhing[k]);
+      }
+
+      olddist = sqrt(olddist);
+      dist = sqrt(dist);
+      tan /= (olddist*dist);
+
+      // Barrier to check that each processor has defined correctly each smc
+      MPI_Barrier(world);
+
+      // Check if the distance is small enough to accept the movement
+      if (dist > cutoff) {
+        // Debug print if got rejected because of distance between beads
+        debug_pre(i);
+        debug_post(i,0,0,0,1,0,dist,tan);
+        continue;
+      }
+
+      // Check if the product between the two tangents is smaller than a cutoff
+      if (tan < tancoff) {
         // Debug print if got rejected because of tangent product value
         debug_pre(i);
         debug_post(i,0,0,0,0,1,dist,tan);
-    } 
+        continue;
+      }
 
-    // Check to have found a suitable new pair of beads and move the bond
-    if (l_flag && t_flag){
-      remove_smc(anch[i], hing[i]);
-      place_smc(anch[i] + tempadir, hing[i] + temphdir, false);
-      anch[i] += tempadir;
-      hing[i] += temphdir;
-      debug_pre(i);
-      debug_post(i,0,0,0,0,0,dist,tan);
-    } 
-    else if (!l_flag){
-      debug_pre(i);
-      debug_post(i,0,0,0,1,0,dist,tan);
-    }
+    // If found a suitable new pair of beads and move the bond
+    remove_smc(anch[i], hing[i]);
+    debug_pre(i);
+
+    place_smc((anch[i] + tempadir), (hing[i] + temphdir), false);
+    anch[i] += tempadir;
+    hing[i] += temphdir;
+
+    debug_post(i,0,0,0,0,0,dist,tan);
 
     // Barrier to check that each processor has defined correctly each smc
     MPI_Barrier(world);
@@ -584,6 +614,13 @@ void FixSMC::post_integrate() {
 }
 
 /*----------------------------------------------------*/
+/*Map polymer bead index to real simulation bead index*/
+/*----------------------------------------------------*/
+long FixSMC::map_to_beads(long i){
+  return (i-1)*(npatches+1) + 1;
+}
+
+/*----------------------------------------------------*/
 /*Check if it is possible to place an anchor on bead i*/
 /*----------------------------------------------------*/
 bool FixSMC::check_avl(long i){
@@ -593,17 +630,19 @@ bool FixSMC::check_avl(long i){
 
   int mnew;
   int mannew;
+  int midnew;
 
   int idnewhi;
   int idnewan;
+  int idnewmid;
 
   // Define hinge position according to movement direction
-  if (maxhdir != 0) tmphing = i + 2 * maxhdir / (abs(maxhdir));
-  else tmphing = i - 2 * (maxadir) / (abs(maxadir));
+  tmphing = i + 2 * maxdir / (abs(maxdir));
 
-  idnewhi = atom -> map(tmphing);
-  idnewan = atom -> map(i);
-  
+  idnewhi = atom -> map(map_to_beads(tmphing));
+  idnewan = atom -> map(map_to_beads(i));
+  idnewmid = atom -> map(map_to_beads((i+tmphing)/2));
+
   // Define SMC's center
   mdbead = (i + tmphing)/2;
 
@@ -632,6 +671,11 @@ bool FixSMC::check_avl(long i){
         MPI_Bcast(&flag,1,MPI_INT,comm->me,world); 
         break;
       }
+      if ((((midnew = idnewmid) >= 0) && (idnewmid < atom -> nlocal)) && atom -> type[midnew] == blockt[j]) {
+        flag=1; 
+        MPI_Bcast(&flag,1,MPI_INT,comm->me,world); 
+        break;
+      }
       if ((((mnew = idnewhi) >= 0) && (idnewhi < atom -> nlocal)) && atom -> type[mnew] == blockt[j]) {
         flag=1; 
         MPI_Bcast(&flag,1,MPI_INT,comm->me,world); 
@@ -654,14 +698,14 @@ void FixSMC::compile_avl_list(){
   long temp_num_avl = 0;
   long * temp_avl_list = new long[atom->nlocal];
 
-  // Filling the list with bead number atom->natoms + 1
-  std::fill(temp_avl_list, temp_avl_list + atom->nlocal, atom->natoms + 1);
+  // Filling the list with bead number solsize + 1
+  std::fill(temp_avl_list, temp_avl_list + atom->nlocal, solsize/(npatches+1) + 1);
 
   // Define displacements for MPI parallelisation
   int displs[comm->nprocs];
   int rcounts[comm->nprocs];
 
-  // Filling the list with bead number atom->natoms + 1
+  // Filling the list with bead number solsize + 1
   std::fill(displs, displs + comm->nprocs, 0);
 
   MPI_Allgather(&atom->nlocal, 1, MPI_INT, rcounts, 1, MPI_INT, world);
@@ -671,9 +715,9 @@ void FixSMC::compile_avl_list(){
     displs[i] += rcounts[i-1] + displs[i-1];
   }
 
-  for (int i = 1; i <= atom->natoms; i++)
+  for (int i = 1; i <= solsize/(npatches+1); i++)
   {
-    if (((atom->map(i)) >= 0) && (atom->map(i) < atom -> nlocal)){
+    if (((atom->map(map_to_beads(i))) >= 0) && (atom->map(map_to_beads(i)) < atom -> nlocal)){
       if (check_avl(i)) {
       temp_avl_list[temp_num_avl] = i;
       temp_num_avl++;
@@ -700,10 +744,10 @@ void FixSMC::compile_avl_list(){
 void FixSMC::load_smc(long i) {
   compile_avl_list();
 
-  int npol = atom->natoms / lpol;
+  int npol = solsize / (lpol*(npatches+1)); 
 
   // Distribute the SMCs in the system, placing at least one for each polymer
-  if ((initmode == 1) && (i * lpol < atom -> natoms) && (update -> ntimestep  == 1)) {
+  if ((initmode == 1) && (i < npol) && (update -> ntimestep  == 1)) {
     do {
       if (comm->me == 0) anch[i] = static_cast < int > (random_equal -> uniform() * lpol + i * lpol);
       MPI_Bcast(anch, smcnum, MPI_LONG, 0, world);
@@ -729,16 +773,247 @@ void FixSMC::load_smc(long i) {
 
   if (num_avl == 0) error -> all(FLERR, "Not enough space for the smcs");
 
-  if (maxhdir != 0) hing[i] = anch[i] + 2;
-  else hing[i] = anch[i] - 2 * maxadir / abs(maxadir);
-
-  MPI_Barrier(world);
+  hing[i] = anch[i] + 2;
 
   // Cast the chosen position to each processor
   MPI_Bcast(anch, smcnum, MPI_LONG, 0, world);
   MPI_Bcast(hing, smcnum, MPI_LONG, 0, world);
 
   MPI_Barrier(world);
+}
+
+void FixSMC::smc_bond(long batom1, long batom2, int btype){
+// check that 2 atoms exist
+
+  const int nlocal = atom->nlocal;
+  const int idx1 = atom->map(batom1);
+  const int idx2 = atom->map(batom2);
+
+  int count = 0;
+  if ((idx1 >= 0) && (idx1 < nlocal)) count++;
+  if ((idx2 >= 0) && (idx2 < nlocal)) count++;
+
+  int allcount;
+  MPI_Allreduce(&count, &allcount, 1, MPI_INT, MPI_SUM, world);
+  if (allcount != 2) error->all(FLERR, "Atoms do not exist");
+
+  // create bond once or 2x if newton_bond set
+
+  int *num_bond = atom->num_bond;
+  int **bond_type = atom->bond_type;
+  tagint **bond_atom = atom->bond_atom;
+
+  int m = idx1;
+  if ((m >= 0) && (m < nlocal)) {
+    if (num_bond[m] == atom->bond_per_atom)
+      error->one(FLERR, "New bond exceeded bonds per atom in create_bonds");
+    bond_type[m][num_bond[m]] = btype;
+    bond_atom[m][num_bond[m]] = batom2;
+    num_bond[m]++;
+  }
+  atom->nbonds++;
+
+  if (force->newton_bond) return;
+
+  m = idx2;
+  if ((m >= 0) && (m < nlocal)) {
+    if (num_bond[m] == atom->bond_per_atom)
+      error->one(FLERR, "New bond exceeded bonds per atom in create_bonds");
+    bond_type[m][num_bond[m]] = btype;
+    bond_atom[m][num_bond[m]] = batom1;
+    num_bond[m]++;
+  }
+}
+
+void FixSMC::smc_angle(long aatom1, long aatom2, long aatom3, int atype){
+// check that 3 atoms exist
+
+  const int nlocal = atom->nlocal;
+  const int idx1 = atom->map(aatom1);
+  const int idx2 = atom->map(aatom2);
+  const int idx3 = atom->map(aatom3);
+
+  int count = 0;
+  if ((idx1 >= 0) && (idx1 < nlocal)) count++;
+  if ((idx2 >= 0) && (idx2 < nlocal)) count++;
+  if ((idx3 >= 0) && (idx3 < nlocal)) count++;
+
+  int allcount;
+  MPI_Allreduce(&count, &allcount, 1, MPI_INT, MPI_SUM, world);
+  if (allcount != 3) error->all(FLERR, "Create_bonds single/angle atoms do not exist");
+
+  // create angle once or 3x if newton_bond set
+
+  int *num_angle = atom->num_angle;
+  int **angle_type = atom->angle_type;
+  tagint **angle_atom1 = atom->angle_atom1;
+  tagint **angle_atom2 = atom->angle_atom2;
+  tagint **angle_atom3 = atom->angle_atom3;
+
+  int m = idx2;
+  if ((m >= 0) && (m < nlocal)) {
+    if (num_angle[m] == atom->angle_per_atom)
+      error->one(FLERR, "New angle exceeded angles per atom in create_bonds");
+    angle_type[m][num_angle[m]] = atype;
+    angle_atom1[m][num_angle[m]] = aatom1;
+    angle_atom2[m][num_angle[m]] = aatom2;
+    angle_atom3[m][num_angle[m]] = aatom3;
+    num_angle[m]++;
+  }
+  atom->nangles++;
+
+  if (force->newton_bond) return;
+
+  m = idx1;
+  if ((m >= 0) && (m < nlocal)) {
+    if (num_angle[m] == atom->angle_per_atom)
+      error->one(FLERR, "New angle exceeded angles per atom in create_bonds");
+    angle_type[m][num_angle[m]] = atype;
+    angle_atom1[m][num_angle[m]] = aatom1;
+    angle_atom2[m][num_angle[m]] = aatom2;
+    angle_atom3[m][num_angle[m]] = aatom3;
+    num_angle[m]++;
+  }
+
+  m = idx3;
+  if ((m >= 0) && (m < nlocal)) {
+    if (num_angle[m] == atom->angle_per_atom)
+      error->one(FLERR, "New angle exceeded angles per atom in create_bonds");
+    angle_type[m][num_angle[m]] = atype;
+    angle_atom1[m][num_angle[m]] = aatom1;
+    angle_atom2[m][num_angle[m]] = aatom2;
+    angle_atom3[m][num_angle[m]] = aatom3;
+    num_angle[m]++;
+  }
+}
+
+void FixSMC::rm_smc_bond(long batom1, long batom2){
+
+  const int nlocal = atom->nlocal;
+  const int idx1 = atom->map(batom1);
+  const int idx2 = atom->map(batom2);
+
+  // find instances of bond history to delete data
+  auto histories = modify->get_fix_by_style("BOND_HISTORY");
+  int n_histories = histories.size();
+
+  int m = idx1;
+
+  if ((m >= 0) && (m < atom -> nlocal)) {
+
+    // Deleting old SMC bond
+    for (int ibond = 0; ibond < atom -> num_bond[m]; ibond++) {
+      if ((atom -> bond_type[m][ibond] == smcbtype) || (atom -> bond_type[m][ibond] == smcbitype)) {
+        atom -> bond_type[m][ibond] = atom -> bond_type[m][atom -> num_bond[m] - 1];
+        atom -> bond_atom[m][ibond] = atom -> bond_atom[m][atom -> num_bond[m] - 1];
+
+        if (n_histories > 0)
+          for (auto & ihistory: histories) {
+            dynamic_cast < FixBondHistory * > (ihistory) -> shift_history(m, ibond, atom -> num_bond[m] - 1);
+            dynamic_cast < FixBondHistory * > (ihistory) -> delete_history(m, atom -> num_bond[m] - 1);
+          }
+
+        atom -> num_bond[m]--;
+        break;
+      }
+    }
+  }
+
+  if (force->newton_bond) return;
+
+  m = idx2;
+
+  if ((m >= 0) && (m < atom -> nlocal)) {
+
+    // Deleting old SMC bond
+    for (int ibond = 0; ibond < atom -> num_bond[m]; ibond++) {
+      if ((atom -> bond_type[m][ibond] == smcbtype) || (atom -> bond_type[m][ibond] == smcbitype)) {
+        atom -> bond_type[m][ibond] = atom -> bond_type[m][atom -> num_bond[m] - 1];
+        atom -> bond_atom[m][ibond] = atom -> bond_atom[m][atom -> num_bond[m] - 1];
+
+        if (n_histories > 0)
+          for (auto & ihistory: histories) {
+            dynamic_cast < FixBondHistory * > (ihistory) -> shift_history(m, ibond, atom -> num_bond[m] - 1);
+            dynamic_cast < FixBondHistory * > (ihistory) -> delete_history(m, atom -> num_bond[m] - 1);
+          }
+
+        atom -> num_bond[m]--;
+        break;
+      }
+    }
+  }
+
+}
+
+void FixSMC::rm_smc_angle(long aatom1, long aatom2, long aatom3){
+  const int nlocal = atom->nlocal;
+  const int idx1 = atom->map(aatom1);
+  const int idx2 = atom->map(aatom2);
+  const int idx3 = atom->map(aatom3);
+
+  int count = 0;
+  if ((idx1 >= 0) && (idx1 < nlocal)) count++;
+  if ((idx2 >= 0) && (idx2 < nlocal)) count++;
+  if ((idx3 >= 0) && (idx3 < nlocal)) count++;
+
+  int allcount;
+  MPI_Allreduce(&count, &allcount, 1, MPI_INT, MPI_SUM, world);
+  if (allcount != 3) error->all(FLERR, "Create_bonds single/angle atoms do not exist");
+
+  // create angle once or 3x if newton_bond set
+
+  int *num_angle = atom->num_angle;
+  int **angle_type = atom->angle_type;
+  tagint **angle_atom1 = atom->angle_atom1;
+  tagint **angle_atom2 = atom->angle_atom2;
+  tagint **angle_atom3 = atom->angle_atom3;
+  
+  int m = idx2;
+
+  if ((m >= 0) && (m < atom -> nlocal)) {
+    for (int i = 0; i < atom->angle_per_atom; i++) {
+      if (atom->angle_type[m][i] == atype) {
+        int n = atom->num_angle[m];
+        atom->angle_type[m][i] = atom->angle_type[m][n-1];
+        atom->angle_atom1[m][i] = atom->angle_atom1[m][n-1];
+        atom->angle_atom2[m][i] = atom->angle_atom2[m][n-1];
+        atom->angle_atom3[m][i] = atom->angle_atom3[m][n-1];
+        atom->num_angle[m]--;
+      }
+    }
+  }
+
+  if (force->newton_bond) return;
+
+  m = idx1;
+
+  if ((m >= 0) && (m < atom -> nlocal)) {
+    for (int i = 0; i < atom->angle_per_atom; i++) {
+      if (atom->angle_type[m][i] == atype) {
+        int n = atom->num_angle[m];
+        atom->angle_type[m][i] = atom->angle_type[m][n-1];
+        atom->angle_atom1[m][i] = atom->angle_atom1[m][n-1];
+        atom->angle_atom2[m][i] = atom->angle_atom2[m][n-1];
+        atom->angle_atom3[m][i] = atom->angle_atom3[m][n-1];
+        atom->num_angle[m]--;
+      }
+    }
+  }
+
+  m = idx3;
+
+  if ((m >= 0) && (m < atom -> nlocal)) {
+    for (int i = 0; i < atom->angle_per_atom; i++) {
+      if (atom->angle_type[m][i] == atype) {
+        int n = atom->num_angle[m];
+        atom->angle_type[m][i] = atom->angle_type[m][n-1];
+        atom->angle_atom1[m][i] = atom->angle_atom1[m][n-1];
+        atom->angle_atom2[m][i] = atom->angle_atom2[m][n-1];
+        atom->angle_atom3[m][i] = atom->angle_atom3[m][n-1];
+        atom->num_angle[m]--;
+      }
+    }
+  }
 }
 
 /*--------------*/
@@ -748,8 +1023,8 @@ void FixSMC::place_smc(long a, long h, bool newsmc) {
   long mhi;
   long man;
 
-  long idhi = atom -> map(h);
-  long idan = atom -> map(a);
+  long idhi = atom -> map(map_to_beads(h));
+  long idan = atom -> map(map_to_beads(a));
 
   // Changing type of the new anchor
   if (((man = idan) >= 0) && (idan < atom -> nlocal)) {
@@ -760,25 +1035,34 @@ void FixSMC::place_smc(long a, long h, bool newsmc) {
   if (((mhi = idhi) >= 0) && (idhi < atom -> nlocal)) {
     // Changing type of new hing
     atom -> type[mhi] = smctype;
+  }
 
-    bool create = 1;
-    for (int ibond = 0; ibond < atom -> num_bond[mhi]; ibond++) {
-      if ((atom -> bond_type[mhi][ibond] == smcbtype) || (atom -> bond_type[mhi][ibond] == smcbitype)) {
-        create = 0;
-      }
+  // Creating new SMC bond
+  if (newsmc){
+    smc_bond(map_to_beads(h), map_to_beads(a),smcbitype);
+  }
+  else {
+    smc_bond(map_to_beads(h), map_to_beads(a),smcbtype);
+  }
+
+  // if (npatches>=1){
+  //   smc_angle(map_to_beads(h)+1,map_to_beads(h),map_to_beads(a),atype);
+
+  //   smc_angle(map_to_beads(a)+1,map_to_beads(a),map_to_beads(h),atype);
+  // }
+
+  // Recoloring patches
+  for (int c = 1; c <= npatches; c++)
+  {
+    long idhipc = atom -> map(map_to_beads(h) + c);
+    long idanpc = atom -> map(map_to_beads(a) + c);
+
+    if (((man = idanpc) >= 0) && (idanpc < atom -> nlocal)) {
+      atom -> type[man] = smctype + 1;
     }
 
-    if (create) {
-      // Creating new SMC bond
-      if (atom -> num_bond[mhi] == atom -> bond_per_atom) error -> one(FLERR, "New bond exceeded bonds per atom limit of {} in create_bonds", atom -> bond_per_atom);
-      if (newsmc){
-        atom -> bond_type[mhi][atom -> num_bond[mhi]] = smcbitype;
-      }
-      else {
-        atom -> bond_type[mhi][atom -> num_bond[mhi]] = smcbtype;
-      }
-      atom -> bond_atom[mhi][atom -> num_bond[mhi]] = a;
-      atom -> num_bond[mhi]++;
+    if (((mhi = idhipc) >= 0) && (idhipc < atom -> nlocal)) {
+      atom -> type[mhi] = smctype + 2;
     }
   }
 
@@ -791,39 +1075,42 @@ void FixSMC::remove_smc(long a, long h) {
   long mhi;
   long man;
 
-  long idhi = atom -> map(h);
-  long idan = atom -> map(a);
-
-  // Get bond histories to apply bond changes
-  auto histories = modify -> get_fix_by_style("BOND_HISTORY");
-  int n_histories = histories.size();
+  long idhi = atom -> map(map_to_beads(h));
+  long idan = atom -> map(map_to_beads(a));
 
   // Changing type of the old anchor
   if (((man = idan) >= 0) && (idan < atom -> nlocal)) {
     atom -> type[man] = 1;
   }
 
+  // Changing type of the old hinge
   if (((mhi = idhi) >= 0) && (idhi < atom -> nlocal)) {
-    // Resetting type
     atom -> type[mhi] = 1;
+  }
 
-    // Deleting old SMC bond
-    for (int ibond = 0; ibond < atom -> num_bond[mhi]; ibond++) {
-      if ((atom -> bond_type[mhi][ibond] == smcbtype) || (atom -> bond_type[mhi][ibond] == smcbitype)) {
-        atom -> bond_type[mhi][ibond] = atom -> bond_type[mhi][atom -> num_bond[mhi] - 1];
-        atom -> bond_atom[mhi][ibond] = atom -> bond_atom[mhi][atom -> num_bond[mhi] - 1];
+  rm_smc_bond(map_to_beads(h),map_to_beads(a));
 
-        if (n_histories > 0)
-          for (auto & ihistory: histories) {
-            dynamic_cast < FixBondHistory * > (ihistory) -> shift_history(mhi, ibond, atom -> num_bond[mhi] - 1);
-            dynamic_cast < FixBondHistory * > (ihistory) -> delete_history(mhi, atom -> num_bond[mhi] - 1);
-          }
+  // if (npatches>=1){
+  //   rm_smc_angle(map_to_beads(h)+1,map_to_beads(h),map_to_beads(a));
 
-        atom -> num_bond[mhi]--;
-        break;
-      }
+  //   rm_smc_angle(map_to_beads(a)+1,map_to_beads(a),map_to_beads(h));
+  // }
+
+  // Recoloring patches
+  for (int c = 1; c <= npatches; c++)
+  {
+    long idhipc = atom -> map(map_to_beads(h) + c);
+    long idanpc = atom -> map(map_to_beads(a) + c);
+    
+    if (((man = idanpc) >= 0) && (idanpc < atom -> nlocal)) {
+      atom -> type[man] = 2;
+    }
+
+    if (((mhi = idhipc) >= 0) && (idhipc < atom -> nlocal)) {
+      atom -> type[mhi] = 2;
     }
   }
+
 }
 
 /*-----------------------------*/
@@ -872,53 +1159,70 @@ std::array<double, 3> FixSMC::compute_xyz(long b){
 /*Pre change debug print*/
 /*-----------------------*/
 void FixSMC::debug_pre(int i){
-  int flag1 = 1;
-  int flag2 = 1;
-  
-  for (int nproc = 0; nproc < comm->nprocs; nproc++){
-    if ((debug) && (atom->map(anch[i]) >= 0) && (comm->me==nproc) && flag1) {
-      debugfile.open("log_fix_smc.txt", std::ios_base::app);
-      debugfile<<update -> ntimestep<<","<<comm->me<<","<<i<<","<<anch[i]<<","<<atom->type[atom->map(anch[i])]<<",";
-      debugfile.close();
-      flag1 = 0;
-    }
-    if ((debug) && (atom->map(hing[i]) >= 0) && (comm->me==nproc) && flag2) {
-      debugfile.open("log_fix_smc.txt", std::ios_base::app);
-      debugfile<<hing[i]<<","<<atom->type[atom->map(hing[i])]<<",";
-      debugfile.close();
-      flag2 = 0;
-    }  
 
-    MPI_Bcast(&flag1,1,MPI_INT,nproc,world);
-    MPI_Bcast(&flag2,1,MPI_INT,nproc,world);
-    MPI_Barrier(world);
+  if (debug){
+    int flag1 = 1;
+    int flag2 = 1;
+    
+    long idhi = atom -> map(map_to_beads(hing[i]));
+    long idan = atom -> map(map_to_beads(anch[i]));
+    
+    for (int nproc = 0; nproc < comm->nprocs; nproc++){
+      if ((idan >= 0) && (idan < atom->nlocal) && (comm->me==nproc) && flag1) {
+        debugfile.open("log_fix_smc.txt", std::ios_base::app);
+        debugfile<<update -> ntimestep<<","<<comm->me<<","<<i<<","<<map_to_beads(anch[i])<<","<<atom->type[idan]<<",";
+        debugfile.close();
+        flag1 = 0;
+      }
+      MPI_Bcast(&flag1,1,MPI_INT,nproc,world);
+      MPI_Barrier(world);
+
+      if ((idhi >= 0) && (idhi < atom->nlocal) && (comm->me==nproc) && flag2) {
+        debugfile.open("log_fix_smc.txt", std::ios_base::app);
+        debugfile<<map_to_beads(hing[i])<<","<<atom->type[idhi]<<",";
+        debugfile.close();
+        flag2 = 0;
+      }  
+
+      MPI_Bcast(&flag2,1,MPI_INT,nproc,world);
+      MPI_Barrier(world);
+    }
   }
+
 }
 
 /*-----------------------*/
 /*Post change debug print*/
 /*-----------------------*/
 void FixSMC::debug_post(int i, bool err1, bool err2, bool err3, bool err4, bool err5, double dist, double tan){
-  int flag1 = 1;
-  int flag2 = 1;
+  
+  if (debug){
+    int flag1 = 1;
+    int flag2 = 1;
 
-  for (int nproc = 0; nproc < comm->nprocs; nproc++){
-    if ((debug) && (atom->map(anch[i]) >= 0) && (comm->me==nproc) && flag1) {
-      debugfile.open("log_fix_smc.txt", std::ios_base::app);
-      debugfile<<anch[i]<<","<<atom->type[atom->map(anch[i])]<<",";
-      debugfile.close();
-      flag1 = 0;
-    }
-    if ((debug) && (atom->map(hing[i]) >= 0) && (comm->me==nproc)  && flag2) {
-      debugfile.open("log_fix_smc.txt", std::ios_base::app);
-      debugfile<<hing[i]<<","<<atom->type[atom->map(hing[i])]<<","<<err1<<","<<err2<<","<<err3<<","<<err4<<","<<err5<<","<<dist<<","<<tan<<std::endl;
-      debugfile.close();
-      flag2 = 0;
-    }
+    long idhi = atom -> map(map_to_beads(hing[i]));
+    long idan = atom -> map(map_to_beads(anch[i]));
 
-    MPI_Bcast(&flag1,1,MPI_INT,nproc,world);
-    MPI_Bcast(&flag2,1,MPI_INT,nproc,world);
-    MPI_Barrier(world);
+    for (int nproc = 0; nproc < comm->nprocs; nproc++){
+      if ((idan >= 0) && (idan < atom->nlocal) && (comm->me==nproc) && flag1) {
+        debugfile.open("log_fix_smc.txt", std::ios_base::app);
+        debugfile<<map_to_beads(anch[i])<<","<<atom->type[idan]<<",";
+        debugfile.close();
+        flag1 = 0;
+      }
+      MPI_Bcast(&flag1,1,MPI_INT,nproc,world);
+      MPI_Barrier(world);
+
+      if ((idhi >= 0) && (idhi < atom->nlocal) && (comm->me==nproc)  && flag2) {
+        debugfile.open("log_fix_smc.txt", std::ios_base::app);
+        debugfile<<map_to_beads(hing[i])<<","<<atom->type[idhi]<<","<<err1<<","<<err2<<","<<err3<<","<<err4<<","<<err5<<","<<dist<<","<<tan<<std::endl;
+        debugfile.close();
+        flag2 = 0;
+      }
+
+      MPI_Bcast(&flag2,1,MPI_INT,nproc,world);
+      MPI_Barrier(world);
+    }
   }
 }
 /*------------------------------------*/
