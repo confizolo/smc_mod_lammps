@@ -44,19 +44,24 @@ namespace LAMMPS_NS
       double compute_array(int, int) override;
       double compute_scalar() override;
 
+      long map_to_beads(long);
       bool check_avl(long);
       void compile_avl_list();
       void load_smc(long);
+      void smc_bond(long, long, int);
+      void smc_angle(long, long, long, int);
+      void rm_smc_bond(long, long);
+      void rm_smc_angle(long, long, long);
       void place_smc(long, long, bool);
       void remove_smc(long, long);
       std::array<double, 3> compute_xyz(long);
       void debug_pre(int);
       void debug_post(int, bool, bool, bool, bool, bool, double, double);
-
+      
    private:
       long *anch, *hing, *av_list;
-      long num_avl;
-      int seed, smctype, smcbtype, smcbitype, lpol, maxadir, maxhdir, adir, hdir, smcnum, initmode, ring, nblockt;
+      long num_avl, solsize;
+      int seed, atype, smctype, smcbtype, smcbitype, lpol, dirmode, maxdir, adir, hdir, smcnum, initmode, ring, nblockt, npatches;
       int *blockt;
       double prob, cutoff, tancoff, kon, koff;
       bool debug;
