@@ -48,10 +48,8 @@ namespace LAMMPS_NS
       bool check_avl(long);
       void compile_avl_list();
       void load_smc(long);
-      void smc_bond(long, long, int);
-      void smc_angle(long, long, long, int);
-      void rm_smc_bond(long, long);
-      void rm_smc_angle(long, long, long);
+      void create_bond(long, long, int);
+      void remove_bond(long, long);
       void place_smc(long, long, bool);
       void remove_smc(long, long);
       std::array<double, 3> compute_xyz(long);

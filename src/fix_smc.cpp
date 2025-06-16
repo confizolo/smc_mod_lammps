@@ -113,7 +113,7 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     //    4.  "fixed": assign SMCs' initial positions according to the filename defined at 23.
     // 19. kon: probability to load a free extruder every nevery step
     // 20. koff: probability to unload an extruder every nevery step
-    // 21. patches: number of patches per bead to recolor (type associated is smctype + 1)
+    // 21. npatches: number of patches per bead to recolor (type associated is smctype + 1)
     // 22. debug: activate debug mode with detailed report on log_fix_smc.txt
     // 23. fixFname: file containing hinge and anchor position list separated by a space (optional)
     // 24. blockbeads: type of beads that the extruder cannot grab, can be listed as an arbitrary long list (e.g.: 2 3 4 ...) (optional)
@@ -782,237 +782,136 @@ void FixSMC::load_smc(long i) {
   MPI_Barrier(world);
 }
 
-void FixSMC::smc_bond(long batom1, long batom2, int btype){
-// check that 2 atoms exist
+void FixSMC::create_bond(int atom1, int atom2, int btype){
 
-  const int nlocal = atom->nlocal;
-  const int idx1 = atom->map(batom1);
-  const int idx2 = atom->map(batom2);
+  int atom_map1 = atom->map(atom1);
+  int atom_map2 = atom->map(atom2);
 
-  int count = 0;
-  if ((idx1 >= 0) && (idx1 < nlocal)) count++;
-  if ((idx2 >= 0) && (idx2 < nlocal)) count++;
-
-  int allcount;
-  MPI_Allreduce(&count, &allcount, 1, MPI_INT, MPI_SUM, world);
-  if (allcount != 2) error->all(FLERR, "Atoms do not exist");
-
-  // create bond once or 2x if newton_bond set
-
+  tagint *slist;
+  tagint **bond_atom = atom->bond_atom;
   int *num_bond = atom->num_bond;
   int **bond_type = atom->bond_type;
-  tagint **bond_atom = atom->bond_atom;
+  int i,j,k,m,n,ii,jj,inum,jnum,itype,jtype,n1,n2,n3,possible;
+  int *type = atom->type;
 
-  int m = idx1;
-  if ((m >= 0) && (m < nlocal)) {
-    if (num_bond[m] == atom->bond_per_atom)
-      error->one(FLERR, "New bond exceeded bonds per atom in create_bonds");
-    bond_type[m][num_bond[m]] = btype;
-    bond_atom[m][num_bond[m]] = batom2;
-    num_bond[m]++;
-  }
-  atom->nbonds++;
+  int **nspecial = atom->nspecial;
+  tagint **special = atom->special;
 
-  if (force->newton_bond) return;
+  // if newton_bond is set, only store with I or J
+  // if not newton_bond, store bond with both I and J
+  // atom J will also do this consistently, whatever proc it is on
 
-  m = idx2;
-  if ((m >= 0) && (m < nlocal)) {
-    if (num_bond[m] == atom->bond_per_atom)
-      error->one(FLERR, "New bond exceeded bonds per atom in create_bonds");
-    bond_type[m][num_bond[m]] = btype;
-    bond_atom[m][num_bond[m]] = batom1;
-    num_bond[m]++;
-  }
-}
-
-void FixSMC::smc_angle(long aatom1, long aatom2, long aatom3, int atype){
-// check that 3 atoms exist
-
-  const int nlocal = atom->nlocal;
-  const int idx1 = atom->map(aatom1);
-  const int idx2 = atom->map(aatom2);
-  const int idx3 = atom->map(aatom3);
-
-  int count = 0;
-  if ((idx1 >= 0) && (idx1 < nlocal)) count++;
-  if ((idx2 >= 0) && (idx2 < nlocal)) count++;
-  if ((idx3 >= 0) && (idx3 < nlocal)) count++;
-
-  int allcount;
-  MPI_Allreduce(&count, &allcount, 1, MPI_INT, MPI_SUM, world);
-  if (allcount != 3) error->all(FLERR, "Create_bonds single/angle atoms do not exist");
-
-  // create angle once or 3x if newton_bond set
-
-  int *num_angle = atom->num_angle;
-  int **angle_type = atom->angle_type;
-  tagint **angle_atom1 = atom->angle_atom1;
-  tagint **angle_atom2 = atom->angle_atom2;
-  tagint **angle_atom3 = atom->angle_atom3;
-
-  int m = idx2;
-  if ((m >= 0) && (m < nlocal)) {
-    if (num_angle[m] == atom->angle_per_atom)
-      error->one(FLERR, "New angle exceeded angles per atom in create_bonds");
-    angle_type[m][num_angle[m]] = atype;
-    angle_atom1[m][num_angle[m]] = aatom1;
-    angle_atom2[m][num_angle[m]] = aatom2;
-    angle_atom3[m][num_angle[m]] = aatom3;
-    num_angle[m]++;
-  }
-  atom->nangles++;
-
-  if (force->newton_bond) return;
-
-  m = idx1;
-  if ((m >= 0) && (m < nlocal)) {
-    if (num_angle[m] == atom->angle_per_atom)
-      error->one(FLERR, "New angle exceeded angles per atom in create_bonds");
-    angle_type[m][num_angle[m]] = atype;
-    angle_atom1[m][num_angle[m]] = aatom1;
-    angle_atom2[m][num_angle[m]] = aatom2;
-    angle_atom3[m][num_angle[m]] = aatom3;
-    num_angle[m]++;
-  }
-
-  m = idx3;
-  if ((m >= 0) && (m < nlocal)) {
-    if (num_angle[m] == atom->angle_per_atom)
-      error->one(FLERR, "New angle exceeded angles per atom in create_bonds");
-    angle_type[m][num_angle[m]] = atype;
-    angle_atom1[m][num_angle[m]] = aatom1;
-    angle_atom2[m][num_angle[m]] = aatom2;
-    angle_atom3[m][num_angle[m]] = aatom3;
-    num_angle[m]++;
-  }
-}
-
-void FixSMC::rm_smc_bond(long batom1, long batom2){
-
-  const int nlocal = atom->nlocal;
-  const int idx1 = atom->map(batom1);
-  const int idx2 = atom->map(batom2);
-
-  // find instances of bond history to delete data
-  auto histories = modify->get_fix_by_style("BOND_HISTORY");
-  int n_histories = histories.size();
-
-  int m = idx1;
-
-  if ((m >= 0) && (m < atom -> nlocal)) {
-
-    // Deleting old SMC bond
-    for (int ibond = 0; ibond < atom -> num_bond[m]; ibond++) {
-      if ((atom -> bond_type[m][ibond] == smcbtype) || (atom -> bond_type[m][ibond] == smcbitype)) {
-        atom -> bond_type[m][ibond] = atom -> bond_type[m][atom -> num_bond[m] - 1];
-        atom -> bond_atom[m][ibond] = atom -> bond_atom[m][atom -> num_bond[m] - 1];
-
-        if (n_histories > 0)
-          for (auto & ihistory: histories) {
-            dynamic_cast < FixBondHistory * > (ihistory) -> shift_history(m, ibond, atom -> num_bond[m] - 1);
-            dynamic_cast < FixBondHistory * > (ihistory) -> delete_history(m, atom -> num_bond[m] - 1);
-          }
-
-        atom -> num_bond[m]--;
-        break;
-      }
+  if (!force->newton_bond || atom1 < atom2) {
+    if ((atom_map1 >= 0) && (atom_map1 < atom->nlocal)) {
+      if (num_bond[atom_map1] == atom->bond_per_atom)
+        error->one(FLERR,"New bond exceeded bonds per atom in fix bond/create");
+      bond_type[atom_map1][num_bond[atom_map1]] = btype;
+      bond_atom[atom_map1][num_bond[atom_map1]] = atom2;
+      num_bond[atom_map1]++;
     }
   }
 
-  if (force->newton_bond) return;
+  if ((atom_map1 >= 0) && (atom_map1 < atom->nlocal)){
+    // add a 1-2 neighbor to special bond list for atom I
+    // atom J will also do this, whatever proc it is on
+    // need to first remove tag[j] from later in list if it appears
+    // prevents list from overflowing, will be rebuilt in rebuild_special_one()
 
-  m = idx2;
-
-  if ((m >= 0) && (m < atom -> nlocal)) {
-
-    // Deleting old SMC bond
-    for (int ibond = 0; ibond < atom -> num_bond[m]; ibond++) {
-      if ((atom -> bond_type[m][ibond] == smcbtype) || (atom -> bond_type[m][ibond] == smcbitype)) {
-        atom -> bond_type[m][ibond] = atom -> bond_type[m][atom -> num_bond[m] - 1];
-        atom -> bond_atom[m][ibond] = atom -> bond_atom[m][atom -> num_bond[m] - 1];
-
-        if (n_histories > 0)
-          for (auto & ihistory: histories) {
-            dynamic_cast < FixBondHistory * > (ihistory) -> shift_history(m, ibond, atom -> num_bond[m] - 1);
-            dynamic_cast < FixBondHistory * > (ihistory) -> delete_history(m, atom -> num_bond[m] - 1);
-          }
-
-        atom -> num_bond[m]--;
-        break;
-      }
+    slist = special[atom_map1];
+    n1 = nspecial[atom_map1][0];
+    n2 = nspecial[atom_map1][1];
+    n3 = nspecial[atom_map1][2];
+    for (m = n1; m < n3; m++)
+      if (slist[m] == atom2) break;
+    if (m < n3) {
+      for (n = m; n < n3-1; n++) slist[n] = slist[n+1];
+      n3--;
+      if (m < n2) n2--;
     }
+    if (n3 == atom->maxspecial)
+      error->one(FLERR,
+                "New bond exceeded special list size in fix bond/create");
+    for (m = n3; m > n1; m--) slist[m] = slist[m-1];
+    slist[n1] = atom2;
+    nspecial[atom_map1][0] = n1+1;
+    nspecial[atom_map1][1] = n2+1;
+    nspecial[atom_map1][2] = n3+1;
+
+    // increment bondcount, convert atom to new type if limit reached
+    // atom J will also do this, whatever proc it is on
+
+    bondcount[atom_map1]++;
+    if (type[atom_map1] == iatomtype) {
+      if (bondcount[atom_map1] == imaxbond) type[atom_map1] = inewtype;
+    } else {
+      if (bondcount[atom_map1] == jmaxbond) type[atom_map1] = jnewtype;
+    }
+
   }
 
 }
 
-void FixSMC::rm_smc_angle(long aatom1, long aatom2, long aatom3){
-  const int nlocal = atom->nlocal;
-  const int idx1 = atom->map(aatom1);
-  const int idx2 = atom->map(aatom2);
-  const int idx3 = atom->map(aatom3);
-
-  int count = 0;
-  if ((idx1 >= 0) && (idx1 < nlocal)) count++;
-  if ((idx2 >= 0) && (idx2 < nlocal)) count++;
-  if ((idx3 >= 0) && (idx3 < nlocal)) count++;
-
-  int allcount;
-  MPI_Allreduce(&count, &allcount, 1, MPI_INT, MPI_SUM, world);
-  if (allcount != 3) error->all(FLERR, "Create_bonds single/angle atoms do not exist");
-
-  // create angle once or 3x if newton_bond set
-
-  int *num_angle = atom->num_angle;
-  int **angle_type = atom->angle_type;
-  tagint **angle_atom1 = atom->angle_atom1;
-  tagint **angle_atom2 = atom->angle_atom2;
-  tagint **angle_atom3 = atom->angle_atom3;
+void FixSMC::remove_bond(int atom1, int atom2, int atom_type){
   
-  int m = idx2;
+  int atom_map1 = atom->map(atom1);
+  int atom_map2 = atom->map(atom2);
 
-  if ((m >= 0) && (m < atom -> nlocal)) {
-    for (int i = 0; i < atom->angle_per_atom; i++) {
-      if (atom->angle_type[m][i] == atype) {
-        int n = atom->num_angle[m];
-        atom->angle_type[m][i] = atom->angle_type[m][n-1];
-        atom->angle_atom1[m][i] = atom->angle_atom1[m][n-1];
-        atom->angle_atom2[m][i] = atom->angle_atom2[m][n-1];
-        atom->angle_atom3[m][i] = atom->angle_atom3[m][n-1];
-        atom->num_angle[m]--;
+  tagint *slist;
+  tagint *tag = atom->tag;
+  tagint **bond_atom = atom->bond_atom;
+  int *num_bond = atom->num_bond;
+  int **bond_type = atom->bond_type;
+
+  int **nspecial = atom->nspecial;
+  tagint **special = atom->special;
+
+  int m,n,n1,n2,n3;
+  if (!force->newton_bond || atom1 < atom2){
+    if ((atom_map1 >= 0) && (atom_map1 < atom->nlocal)) {
+      // Find the bond index in atom_min's bond list
+      int bond_index = -1;
+      for (int b = 0; b < num_bond[atom_map1]; ++b) {
+        if (bond_atom[atom_map1][b] == atom2) {
+          bond_index = b;
+          break;
+        }
       }
+      // Remove the bond from atom_min's bond list
+      if (bond_index != -1) {
+        for (int b = bond_index; b < num_bond[atom_map1] - 1; ++b) {
+          bond_atom[atom_map1][b] = bond_atom[atom_map1][b + 1];
+          bond_type[atom_map1][b] = bond_type[atom_map1][b + 1];
+        }
+        --num_bond[atom_map1];
+      }
+
+      // Decrement bond counts
+      --bondcount[atom_map1];
+
     }
   }
 
-  if (force->newton_bond) return;
-
-  m = idx1;
-
-  if ((m >= 0) && (m < atom -> nlocal)) {
-    for (int i = 0; i < atom->angle_per_atom; i++) {
-      if (atom->angle_type[m][i] == atype) {
-        int n = atom->num_angle[m];
-        atom->angle_type[m][i] = atom->angle_type[m][n-1];
-        atom->angle_atom1[m][i] = atom->angle_atom1[m][n-1];
-        atom->angle_atom2[m][i] = atom->angle_atom2[m][n-1];
-        atom->angle_atom3[m][i] = atom->angle_atom3[m][n-1];
-        atom->num_angle[m]--;
-      }
+  if ((atom_map1 >= 0) && (atom_map1 < atom->nlocal)) {
+    atom->type[atom_map1] = atom_type;
+    
+    slist = special[atom_map1];
+    n1 = nspecial[atom_map1][0];
+    n2 = nspecial[atom_map1][1];
+    n3 = nspecial[atom_map1][2];
+    for (m = n1; m < n3; m++)
+      if (slist[m] == tag[atom_map2]) break;
+    if (m < n3) {
+      for (n = m; n < n3-1; n++) slist[n] = slist[n-1];
+      n3++;
+      if (m < n2) n2++;
     }
-  }
 
-  m = idx3;
+    for (m = n3; m > n1; m--) slist[m] = slist[m+1];
+    slist[n1] = 0;
+    nspecial[atom_map1][0] = n1-1;
+    nspecial[atom_map1][1] = n2-1;
+    nspecial[atom_map1][2] = n3-1;
 
-  if ((m >= 0) && (m < atom -> nlocal)) {
-    for (int i = 0; i < atom->angle_per_atom; i++) {
-      if (atom->angle_type[m][i] == atype) {
-        int n = atom->num_angle[m];
-        atom->angle_type[m][i] = atom->angle_type[m][n-1];
-        atom->angle_atom1[m][i] = atom->angle_atom1[m][n-1];
-        atom->angle_atom2[m][i] = atom->angle_atom2[m][n-1];
-        atom->angle_atom3[m][i] = atom->angle_atom3[m][n-1];
-        atom->num_angle[m]--;
-      }
-    }
   }
 }
 
@@ -1039,10 +938,10 @@ void FixSMC::place_smc(long a, long h, bool newsmc) {
 
   // Creating new SMC bond
   if (newsmc){
-    smc_bond(map_to_beads(h), map_to_beads(a),smcbitype);
+    create_bond(map_to_beads(h), map_to_beads(a), smcbitype);
   }
   else {
-    smc_bond(map_to_beads(h), map_to_beads(a),smcbtype);
+    create_bond(map_to_beads(h), map_to_beads(a), smcbtype);
   }
 
   // if (npatches>=1){
@@ -1088,7 +987,7 @@ void FixSMC::remove_smc(long a, long h) {
     atom -> type[mhi] = 1;
   }
 
-  rm_smc_bond(map_to_beads(h),map_to_beads(a));
+  remove_bond(map_to_beads(h),map_to_beads(a));
 
   // if (npatches>=1){
   //   rm_smc_angle(map_to_beads(h)+1,map_to_beads(h),map_to_beads(a));
