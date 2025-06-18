@@ -129,6 +129,8 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     restart_global = 1;
 
     // Activate flag for array and scalar return
+    extscalar=1;
+    extarray=1;
     scalar_flag = 1;
     array_flag = 1;
 
@@ -782,7 +784,7 @@ void FixSMC::load_smc(long i) {
   MPI_Barrier(world);
 }
 
-void FixSMC::create_bond(int atom1, int atom2, int btype){
+void FixSMC::create_bond(long atom1, long atom2, int btype){
 
   int atom_map1 = atom->map(atom1);
   int atom_map2 = atom->map(atom2);
@@ -837,21 +839,11 @@ void FixSMC::create_bond(int atom1, int atom2, int btype){
     nspecial[atom_map1][1] = n2+1;
     nspecial[atom_map1][2] = n3+1;
 
-    // increment bondcount, convert atom to new type if limit reached
-    // atom J will also do this, whatever proc it is on
-
-    bondcount[atom_map1]++;
-    if (type[atom_map1] == iatomtype) {
-      if (bondcount[atom_map1] == imaxbond) type[atom_map1] = inewtype;
-    } else {
-      if (bondcount[atom_map1] == jmaxbond) type[atom_map1] = jnewtype;
-    }
-
   }
 
 }
 
-void FixSMC::remove_bond(int atom1, int atom2, int atom_type){
+void FixSMC::remove_bond(long atom1, long atom2){
   
   int atom_map1 = atom->map(atom1);
   int atom_map2 = atom->map(atom2);
@@ -885,15 +877,11 @@ void FixSMC::remove_bond(int atom1, int atom2, int atom_type){
         --num_bond[atom_map1];
       }
 
-      // Decrement bond counts
-      --bondcount[atom_map1];
-
     }
   }
 
   if ((atom_map1 >= 0) && (atom_map1 < atom->nlocal)) {
-    atom->type[atom_map1] = atom_type;
-    
+
     slist = special[atom_map1];
     n1 = nspecial[atom_map1][0];
     n2 = nspecial[atom_map1][1];
@@ -939,9 +927,12 @@ void FixSMC::place_smc(long a, long h, bool newsmc) {
   // Creating new SMC bond
   if (newsmc){
     create_bond(map_to_beads(h), map_to_beads(a), smcbitype);
+    create_bond(map_to_beads(a), map_to_beads(h), smcbitype);
+
   }
   else {
     create_bond(map_to_beads(h), map_to_beads(a), smcbtype);
+    create_bond(map_to_beads(a), map_to_beads(h), smcbtype);
   }
 
   // if (npatches>=1){
@@ -988,6 +979,7 @@ void FixSMC::remove_smc(long a, long h) {
   }
 
   remove_bond(map_to_beads(h),map_to_beads(a));
+  remove_bond(map_to_beads(a),map_to_beads(h));
 
   // if (npatches>=1){
   //   rm_smc_angle(map_to_beads(h)+1,map_to_beads(h),map_to_beads(a));
