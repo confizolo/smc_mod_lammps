@@ -96,8 +96,8 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     // 9. poltype: select shape of polymer(s) (either "linear" or "ring")
     // 10. mmod: movement mode
         //    1.  "bi": bidirectional movement of maximum size mmod
-        //    2.  "mo1": monodirectional movement of maximum size mmod
-        //    3.  "mo2": distributes evenly SMCs over the polymers of maximum size -mmod
+        //    2.  "mo1": monodirectional movement of maximum size mmod for the anchor
+        //    3.  "mo2": monodirectional movement of maximum size mmod for the hinge
         //    4.  "mora": split in half the smcs and assign monodirectional movement in two different directions
     // 11. msize: movement (maximum) size
     // 12. smcnum: number of deployed SMCs
@@ -116,7 +116,10 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     // 21. npatches: number of patches per bead to recolor (type associated is smctype + 1)
     // 22. debug: activate debug mode with detailed report on log_fix_smc.txt
     // 23. fixFname: file containing hinge and anchor position list separated by a space (optional)
-    // 24. blockbeads: type of beads that the extruder cannot grab, can be listed as an arbitrary long list (e.g.: 2 3 4 ...) (optional)
+    // 24. bridging: flag to activate bridging of SMCs
+    // 24. bridgbrk: probability to break the bond between SMCs when bridging is activated (optional)
+    // 25. bridgebtype: type of bond to be created between SMCs when bridging is activated (optional)
+    // 26. blockbeads: type of beads that the extruder cannot grab, can be listed as an arbitrary long list (e.g.: 2 3 4 ...) (optional)
 
     // Check on the number of arguments given to the fix
     if (narg < 19) error -> all(FLERR, "Illegal fix smc command");
@@ -245,6 +248,17 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     if (initmode == 3){  
       if (narg<23) error -> all(FLERR, "Illegal fix smc command, smc startfile absent");
       fixFname = arg[22];
+      argnum += 1;
+    }
+
+    bridging = utils::numeric(FLERR, arg[argnum], false, lmp);
+    argnum += 1;
+    
+    if (bridging){
+      bridgbrkprob = utils::numeric(FLERR, arg[argnum], false, lmp);
+      argnum += 1;
+
+      bridgbtype = utils::inumeric(FLERR, arg[argnum], false, lmp);
       argnum += 1;
     }
 
@@ -400,6 +414,53 @@ void FixSMC::post_integrate() {
     
     for (int i = 0; i < smcnum; i++) {
 
+      if (bridging) {
+        int rmcand = -1;
+        // Remove any bond of type bridgbtype between anchor and its neighbors
+        int hinge_map = atom->map(map_to_beads(hing[i]));
+        if ((hinge_map >= 0) && (hinge_map < atom->nlocal)) {
+          int nbonds = atom->num_bond[hinge_map];
+          tagint *bonds = atom->bond_atom[hinge_map];
+          int *btypes = atom->bond_type[hinge_map];
+          for (int b = nbonds - 1; b >= 0; --b) {
+            if (btypes[b] == bridgbtype) {
+              rmcand = bonds[b];
+              MPI_Bcast(&rmcand, 1, MPI_INT, comm->me, world);
+              break;
+            }
+          }
+        }
+
+        if (rmcand == -1) {
+          for (int l = 0; l < atom->nlocal; l++) {
+            int nbonds = atom->num_bond[l];
+            tagint *bonds = atom->bond_atom[l];
+            int *btypes = atom->bond_type[l];
+            for (int b = nbonds - 1; b >= 0; --b) {
+              if (bonds[b] == map_to_beads(hing[i]) && btypes[b] == bridgbtype) {
+                rmcand = atom->tag[l];
+                MPI_Bcast(&rmcand, 1, MPI_INT, comm->me, world);
+                break;
+              }
+            }
+            if (rmcand > 0) break;
+          }
+        }
+
+        double brk_rand = 0.0;
+        if (comm->me == 0) brk_rand = random_equal->uniform();
+        MPI_Bcast(&brk_rand, 1, MPI_DOUBLE, 0, world);
+
+        if (rmcand > 0 && brk_rand < bridgbrkprob) {
+          std::cout << "Breaking bond between" << map_to_beads(hing[i]) << " and " << rmcand << std::endl;
+          remove_bond(map_to_beads(hing[i]), rmcand);
+          remove_bond(rmcand, map_to_beads(hing[i]));  
+        }
+      }
+
+      // Barrier to check that each processor has defined correctly each smc
+      MPI_Barrier(world);
+    
       // Draw two random numbers for the unloading/loading
       double lrand;
 
@@ -901,6 +962,7 @@ void FixSMC::remove_bond(long atom1, long atom2){
     nspecial[atom_map1][2] = n3-1;
 
   }
+
 }
 
 /*--------------*/
@@ -921,7 +983,7 @@ void FixSMC::place_smc(long a, long h, bool newsmc) {
   // Create new bond between new hinge and anchor if not already present
   if (((mhi = idhi) >= 0) && (idhi < atom -> nlocal)) {
     // Changing type of new hing
-    atom -> type[mhi] = smctype;
+    atom -> type[mhi] = smctype + 2;
   }
 
   // Creating new SMC bond
@@ -952,7 +1014,7 @@ void FixSMC::place_smc(long a, long h, bool newsmc) {
     }
 
     if (((mhi = idhipc) >= 0) && (idhipc < atom -> nlocal)) {
-      atom -> type[mhi] = smctype + 2;
+      atom -> type[mhi] = smctype + 3;
     }
   }
 
@@ -980,6 +1042,45 @@ void FixSMC::remove_smc(long a, long h) {
 
   remove_bond(map_to_beads(h),map_to_beads(a));
   remove_bond(map_to_beads(a),map_to_beads(h));
+
+  if (bridging) {
+    int rmcand = -1;
+    // Remove any bond of type bridgbtype between anchor and its neighbors
+    int hinge_map = atom->map(map_to_beads(h));
+    if ((hinge_map >= 0) && (hinge_map < atom->nlocal)) {
+      int nbonds = atom->num_bond[hinge_map];
+      tagint *bonds = atom->bond_atom[hinge_map];
+      int *btypes = atom->bond_type[hinge_map];
+      for (int b = nbonds - 1; b >= 0; --b) {
+        if (btypes[b] == bridgbtype) {
+          rmcand = bonds[b];
+          MPI_Bcast(&rmcand, 1, MPI_INT, comm->me, world);
+          break;
+        }
+      }
+    }
+
+    if (rmcand == -1) {
+      for (int i = 0; i < atom->nlocal; ++i) {
+        int nbonds = atom->num_bond[i];
+        tagint *bonds = atom->bond_atom[i];
+        int *btypes = atom->bond_type[i];
+        for (int b = nbonds - 1; b >= 0; --b) {
+          if (bonds[b] == map_to_beads(h) && btypes[b] == bridgbtype) {
+            rmcand = atom->tag[i];
+            MPI_Bcast(&rmcand, 1, MPI_INT, comm->me, world);
+            break;
+          }
+        }
+        if (rmcand > 0) break;
+      }
+    }
+
+    if (rmcand > 0) {
+      remove_bond(map_to_beads(h), rmcand);
+      remove_bond(rmcand, map_to_beads(h));  
+    }
+  }
 
   // if (npatches>=1){
   //   rm_smc_angle(map_to_beads(h)+1,map_to_beads(h),map_to_beads(a));

@@ -59,10 +59,10 @@ namespace LAMMPS_NS
    private:
       long *anch, *hing, *av_list;
       long num_avl, solsize;
-      int seed, atype, smctype, smcbtype, smcbitype, lpol, dirmode, maxdir, adir, hdir, smcnum, initmode, ring, nblockt, npatches;
+      int seed, atype, smctype, smcbtype, smcbitype, bridgbtype, lpol, dirmode, maxdir, adir, hdir, smcnum, initmode, ring, nblockt, npatches;
       int *blockt;
-      double prob, cutoff, tancoff, kon, koff;
-      bool debug;
+      double bridgbrkprob, prob, cutoff, tancoff, kon, koff;
+      bool bridging, debug;
       std::ofstream debugfile;
       class RanPark *random_equal;
       std::string fixFname;
