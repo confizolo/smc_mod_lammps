@@ -55,14 +55,19 @@ namespace LAMMPS_NS
       std::array<double, 3> compute_xyz(long);
       void debug_pre(int);
       void debug_post(int, bool, bool, bool, bool, bool, double, double);
-      
+      void update_topology(int, int);
+      void rebuild_special_one(int);
+      int dedup(int, int, tagint *);
+
    private:
       long *anch, *hing, *av_list;
       long num_avl, solsize;
-      int seed, atype, smctype, smcbtype, smcbitype, bridgbtype, lpol, dirmode, maxdir, adir, hdir, smcnum, initmode, ring, nblockt, npatches;
+      int seed, atype, smctype, smcbtype, smcbitype, lpol, dirmode, maxdir, adir, hdir, smcnum, initmode, ring, nblockt, npatches;
       int *blockt;
-      double bridgbrkprob, prob, cutoff, tancoff, kon, koff;
-      bool bridging, debug;
+      tagint *copy;
+
+      double prob, cutoff, tancoff, kon, koff;
+      bool debug;
       std::ofstream debugfile;
       class RanPark *random_equal;
       std::string fixFname;

@@ -1,0 +1,131 @@
+#################################
+####    PARAMETERS       ########
+#################################
+#temperature of the system
+variable Temp equal 1.0
+
+#damping parameter of nanostars, it determines how rapidly the temperature is relaxed
+variable tdamp equal 1.0
+
+#Length of the run with LJ steric repulsion
+variable run2 equal 100
+
+#Restart every these timesteps
+variable trestart equal 10000
+
+#Dump data every these timesteps
+variable dumpfreq equal 100
+
+#Dump data every these timesteps
+variable dumpxyz equal 1000
+
+###############################################
+############	BOX		###############
+###############################################
+units lj
+atom_style angle #with stiffness
+boundary        p p p
+dimension 3
+
+neighbor 5.0 bin
+neigh_modify every 1 delay 1 check yes
+neigh_modify exclude molecule/intra all
+
+comm_modify cutoff 6.0
+include parameters.dat
+
+###############################################
+############	FILES		###############
+###############################################
+
+variable simname index melt-smc
+variable restartname index /Users/s2469797/Documents/smc-lammps/initfiles/poly.m2.n10.rho0.005.npatch2.par
+
+variable dname index /Users/s2469797/Documents/smc-lammps/test
+
+shell mkdir ${dname}
+shell mkdir ${dname}/restarts
+shell mkdir ${dname}/dumps
+shell mkdir ${dname}/smcpos
+
+read_data ${restartname} extra/bond/per/atom 1 extra/special/per/atom 20
+
+###############################################
+############    PAIRS   LJ              #######
+###############################################
+pair_style hybrid/overlay lj/cut 1.12246 soft 5.0
+pair_modify  shift yes
+pair_coeff * * lj/cut 0.0 0.0  0.0      #turn-off steric interactions
+pair_coeff 1 1 lj/cut 1.0 1.0  1.12246  #turn-on beads steric interactions
+pair_coeff 1 5 soft 0 5.0 #dummy pair
+pair_coeff 1 3 lj/cut 1.0 1.0  1.12246  #turn-on beads steric interactions
+pair_coeff 3 3 lj/cut 1.0 1.0  1.12246  #turn-on beads steric interactions
+pair_coeff 3 3 lj/cut 1.0 1.0  1.12246  #turn-on beads steric interactions
+#pair_coeff 4 4 morse  ${mstr} 14.0 0.0 0.20 #bridging interaction
+
+##########################################
+############    BONDS            ##########
+##########################################
+bond_style hybrid harmonic fene
+special_bonds fene
+
+bond_coeff   1 fene  30.0   1.5  1.0  1.0
+bond_coeff   2 harmonic 100 1.1
+#bond_coeff   3 fene  7.0   1.9  1.0  1.0
+bond_coeff   3 fene  7.0   1.9  1.0  1.0
+#bond_coeff   4 morse 8 0.3 2.5 #bridging interaction
+bond_coeff 4 harmonic 4 1 
+
+###############################################
+############	ANGLE		###############
+###############################################
+angle_style   cosine
+variable lp equal 5.0 #Persistence length
+angle_coeff  * ${lp} 
+
+###############################################
+############	THERMO AND TIME 		#######
+###############################################
+thermo 1000
+thermo_style   custom   step  temp  epair ebond eangle vol cpu
+timestep 0.01
+
+###############################################
+############    FIXES                   #######
+###############################################
+
+#fix 1 all nve  
+#fix 2 all langevin   ${Temp} ${Temp} ${tdamp}  ${seedthermo}
+
+fix 1 all rigid/small molecule langevin   ${Temp} ${Temp} ${tdamp}  ${seedthermo}
+
+fix bridgesmc all bond/create/bridg 100 5 1 5.0 4 iparam 1 5 jparam 1 1 prob 1 4224
+fix smcrun all smc ${ratesmc} ${seedsmc} ${probsmc} ${lpol} 60 linear mo1 1 ${nsmc} 3 3 2 ${cutoff} 0 fixed ${kon} ${koff} 2 1 smcpos.txt
+fix rmbridge all bond/break 100 4 0 prob 0.1 4224
+
+fix conf all indent 200 sphere 0 0 0 6 side in
+
+restart ${trestart} ${dname}/restarts/${simname}.*.restart
+
+###############################################
+############	DUMP		###############
+###############################################
+#dump 2 all custom ${dumpfreq} ${dname}/dumps/${simname}.*.lammpstrj id mol type x y z ix iy iz
+compute bondinfo all property/local btype batom1 batom2
+dump 3 all local ${dumpfreq} ${dname}/dumps/${simname}.*.bonds c_bondinfo[1] c_bondinfo[2] c_bondinfo[3]
+
+###############
+# RUN
+#############
+write_data ${dname}/smcpos/${simname}.0.data
+
+run 400000
+
+#variable i loop 4000
+#label loop_write
+#run ${run2}
+#variable i100 equal ${i}*100
+#write_data ${dname}/smcpos/${simname}.${i100}.data
+#next i
+#jump SELF loop_write
+

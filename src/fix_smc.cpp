@@ -116,10 +116,7 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     // 21. npatches: number of patches per bead to recolor (type associated is smctype + 1)
     // 22. debug: activate debug mode with detailed report on log_fix_smc.txt
     // 23. fixFname: file containing hinge and anchor position list separated by a space (optional)
-    // 24. bridging: flag to activate bridging of SMCs
-    // 24. bridgbrk: probability to break the bond between SMCs when bridging is activated (optional)
-    // 25. bridgebtype: type of bond to be created between SMCs when bridging is activated (optional)
-    // 26. blockbeads: type of beads that the extruder cannot grab, can be listed as an arbitrary long list (e.g.: 2 3 4 ...) (optional)
+    // 24. blockbeads: type of beads that the extruder cannot grab, can be listed as an arbitrary long list (e.g.: 2 3 4 ...) (optional)
 
     // Check on the number of arguments given to the fix
     if (narg < 19) error -> all(FLERR, "Illegal fix smc command");
@@ -251,17 +248,6 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
       argnum += 1;
     }
 
-    bridging = utils::numeric(FLERR, arg[argnum], false, lmp);
-    argnum += 1;
-    
-    if (bridging){
-      bridgbrkprob = utils::numeric(FLERR, arg[argnum], false, lmp);
-      argnum += 1;
-
-      bridgbtype = utils::inumeric(FLERR, arg[argnum], false, lmp);
-      argnum += 1;
-    }
-
     // Define number of type of beads to avoid
     nblockt = narg - argnum;
 
@@ -300,24 +286,29 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
     // Initialise seed generator
     random_equal = new RanPark(lmp, seed);
 
+    // copy = special list for one atom
+    // size = ms^2 + ms is sufficient
+    // b/c in rebuild_special_one() neighs of all 1-2s are added,
+    //   then a dedup(), then neighs of all 1-3s are added, then final dedup()
+    // this means intermediate size cannot exceed ms^2 + ms
+
+    int maxspecial = atom->maxspecial;
+    copy = new tagint[maxspecial*maxspecial + maxspecial];
+
     // To get a different random number every time the program is executed
     srand(time(NULL) * seed);
   }
 
 /* ---------------------------------------------------------------------- */
 
-FixSMC::~FixSMC() {
-
-  // // Loop over the instantiated SMCs, remove bonds and change types
-  // for (int i = 0; i < smcnum; i++) {
-  //   remove_smc(anch[i], hing[i]);
-  // }
+FixSMC::~FixSMC() { 
 
   // Deleting pointers
   delete random_equal;
   delete anch;
   delete hing;
   delete blockt;
+  delete [] copy;
   
   memory -> destroy(av_list);
 
@@ -413,50 +404,6 @@ void FixSMC::post_integrate() {
     double rand;
     
     for (int i = 0; i < smcnum; i++) {
-
-      if (bridging) {
-        int rmcand = -1;
-        // Remove any bond of type bridgbtype between anchor and its neighbors
-        int hinge_map = atom->map(map_to_beads(hing[i]));
-        if ((hinge_map >= 0) && (hinge_map < atom->nlocal)) {
-          int nbonds = atom->num_bond[hinge_map];
-          tagint *bonds = atom->bond_atom[hinge_map];
-          int *btypes = atom->bond_type[hinge_map];
-          for (int b = nbonds - 1; b >= 0; --b) {
-            if (btypes[b] == bridgbtype) {
-              rmcand = bonds[b];
-              MPI_Bcast(&rmcand, 1, MPI_INT, comm->me, world);
-              break;
-            }
-          }
-        }
-
-        if (rmcand == -1) {
-          for (int l = 0; l < atom->nlocal; l++) {
-            int nbonds = atom->num_bond[l];
-            tagint *bonds = atom->bond_atom[l];
-            int *btypes = atom->bond_type[l];
-            for (int b = nbonds - 1; b >= 0; --b) {
-              if (bonds[b] == map_to_beads(hing[i]) && btypes[b] == bridgbtype) {
-                rmcand = atom->tag[l];
-                MPI_Bcast(&rmcand, 1, MPI_INT, comm->me, world);
-                break;
-              }
-            }
-            if (rmcand > 0) break;
-          }
-        }
-
-        double brk_rand = 0.0;
-        if (comm->me == 0) brk_rand = random_equal->uniform();
-        MPI_Bcast(&brk_rand, 1, MPI_DOUBLE, 0, world);
-
-        if (rmcand > 0 && brk_rand < bridgbrkprob) {
-          std::cout << "Breaking bond between" << map_to_beads(hing[i]) << " and " << rmcand << std::endl;
-          remove_bond(map_to_beads(hing[i]), rmcand);
-          remove_bond(rmcand, map_to_beads(hing[i]));  
-        }
-      }
 
       // Barrier to check that each processor has defined correctly each smc
       MPI_Barrier(world);
@@ -860,9 +807,8 @@ void FixSMC::create_bond(long atom1, long atom2, int btype){
   int **nspecial = atom->nspecial;
   tagint **special = atom->special;
 
-  // if newton_bond is set, only store with I or J
-  // if not newton_bond, store bond with both I and J
-  // atom J will also do this consistently, whatever proc it is on
+  // if newton_bond is set, only store with atom2
+  // if not newton_bond, store bond with both atom1 and atom2
 
   if (!force->newton_bond || atom1 < atom2) {
     if ((atom_map1 >= 0) && (atom_map1 < atom->nlocal)) {
@@ -872,14 +818,15 @@ void FixSMC::create_bond(long atom1, long atom2, int btype){
       bond_atom[atom_map1][num_bond[atom_map1]] = atom2;
       num_bond[atom_map1]++;
     }
+
+    atom->nbonds++;
+
+    next_reneighbor = update->ntimestep;
   }
 
   if ((atom_map1 >= 0) && (atom_map1 < atom->nlocal)){
-    // add a 1-2 neighbor to special bond list for atom I
-    // atom J will also do this, whatever proc it is on
-    // need to first remove tag[j] from later in list if it appears
-    // prevents list from overflowing, will be rebuilt in rebuild_special_one()
-
+    // add a 1-2 neighbor to special bond list
+   
     slist = special[atom_map1];
     n1 = nspecial[atom_map1][0];
     n2 = nspecial[atom_map1][1];
@@ -893,7 +840,7 @@ void FixSMC::create_bond(long atom1, long atom2, int btype){
     }
     if (n3 == atom->maxspecial)
       error->one(FLERR,
-                "New bond exceeded special list size in fix bond/create");
+                "New bond exceeded special list size in fix smc");
     for (m = n3; m > n1; m--) slist[m] = slist[m-1];
     slist[n1] = atom2;
     nspecial[atom_map1][0] = n1+1;
@@ -906,63 +853,66 @@ void FixSMC::create_bond(long atom1, long atom2, int btype){
 
 void FixSMC::remove_bond(long atom1, long atom2){
   
+  int i,j,k,m,n,i1,i2,n1,n3,type;
+
+  // find instances of bond history to delete data
+  auto histories = modify->get_fix_by_style("BOND_HISTORY");
+  int n_histories = histories.size();
+
+  // break bonds
+
+  int **bond_type = atom->bond_type;
+  tagint **bond_atom = atom->bond_atom;
+  int *num_bond = atom->num_bond;
+  int **nspecial = atom->nspecial;
+  tagint **special = atom->special;
+  tagint *slist;
+
   int atom_map1 = atom->map(atom1);
   int atom_map2 = atom->map(atom2);
 
-  tagint *slist;
-  tagint *tag = atom->tag;
-  tagint **bond_atom = atom->bond_atom;
-  int *num_bond = atom->num_bond;
-  int **bond_type = atom->bond_type;
+  // delete bond from atom1 if atom1 stores it
 
-  int **nspecial = atom->nspecial;
-  tagint **special = atom->special;
-
-  int m,n,n1,n2,n3;
-  if (!force->newton_bond || atom1 < atom2){
+  if (!force->newton_bond || atom1 < atom2) {
     if ((atom_map1 >= 0) && (atom_map1 < atom->nlocal)) {
-      // Find the bond index in atom_min's bond list
-      int bond_index = -1;
-      for (int b = 0; b < num_bond[atom_map1]; ++b) {
-        if (bond_atom[atom_map1][b] == atom2) {
-          bond_index = b;
+      for (m = 0; m < num_bond[atom_map1]; m++) {
+        if (bond_atom[atom_map1][m] == atom2) {
+          for (k = m; k < num_bond[atom_map1]-1; k++) {
+            bond_atom[atom_map1][k] = bond_atom[atom_map1][k+1];
+            bond_type[atom_map1][k] = bond_type[atom_map1][k+1];
+            if (n_histories > 0)
+              for (auto &ihistory: histories)
+                dynamic_cast<FixBondHistory *>(ihistory)->shift_history(atom_map1,k,k+1);
+          }
+          if (n_histories > 0)
+            for (auto &ihistory: histories)
+              dynamic_cast<FixBondHistory *>(ihistory)->delete_history(atom_map1,num_bond[atom_map1]-1);
+          num_bond[atom_map1]--;
           break;
         }
       }
-      // Remove the bond from atom_min's bond list
-      if (bond_index != -1) {
-        for (int b = bond_index; b < num_bond[atom_map1] - 1; ++b) {
-          bond_atom[atom_map1][b] = bond_atom[atom_map1][b + 1];
-          bond_type[atom_map1][b] = bond_type[atom_map1][b + 1];
-        }
-        --num_bond[atom_map1];
-      }
-
     }
+
+    atom->nbonds--;
+
+    next_reneighbor = update->ntimestep;
   }
 
-  if ((atom_map1 >= 0) && (atom_map1 < atom->nlocal)) {
+  // remove atom2 from special bond list for atom atom1
+
+  if ((atom_map1 >= 0) && (atom_map1 < atom->nlocal)){
 
     slist = special[atom_map1];
     n1 = nspecial[atom_map1][0];
-    n2 = nspecial[atom_map1][1];
+    for (m = 0; m < n1; m++)
+      if (slist[m] == atom2) break;
     n3 = nspecial[atom_map1][2];
-    for (m = n1; m < n3; m++)
-      if (slist[m] == tag[atom_map2]) break;
-    if (m < n3) {
-      for (n = m; n < n3-1; n++) slist[n] = slist[n-1];
-      n3++;
-      if (m < n2) n2++;
-    }
-
-    for (m = n3; m > n1; m--) slist[m] = slist[m+1];
-    slist[n1] = 0;
-    nspecial[atom_map1][0] = n1-1;
-    nspecial[atom_map1][1] = n2-1;
-    nspecial[atom_map1][2] = n3-1;
+    for (; m < n3-1; m++) slist[m] = slist[m+1];
+    nspecial[atom_map1][0]--;
+    nspecial[atom_map1][1]--;
+    nspecial[atom_map1][2]--;
 
   }
-
 }
 
 /*--------------*/
@@ -997,11 +947,8 @@ void FixSMC::place_smc(long a, long h, bool newsmc) {
     create_bond(map_to_beads(a), map_to_beads(h), smcbtype);
   }
 
-  // if (npatches>=1){
-  //   smc_angle(map_to_beads(h)+1,map_to_beads(h),map_to_beads(a),atype);
-
-  //   smc_angle(map_to_beads(a)+1,map_to_beads(a),map_to_beads(h),atype);
-  // }
+  // Update special neighbors topology
+  update_topology(map_to_beads(h), map_to_beads(a));
 
   // Recoloring patches
   for (int c = 1; c <= npatches; c++)
@@ -1043,50 +990,8 @@ void FixSMC::remove_smc(long a, long h) {
   remove_bond(map_to_beads(h),map_to_beads(a));
   remove_bond(map_to_beads(a),map_to_beads(h));
 
-  if (bridging) {
-    int rmcand = -1;
-    // Remove any bond of type bridgbtype between anchor and its neighbors
-    int hinge_map = atom->map(map_to_beads(h));
-    if ((hinge_map >= 0) && (hinge_map < atom->nlocal)) {
-      int nbonds = atom->num_bond[hinge_map];
-      tagint *bonds = atom->bond_atom[hinge_map];
-      int *btypes = atom->bond_type[hinge_map];
-      for (int b = nbonds - 1; b >= 0; --b) {
-        if (btypes[b] == bridgbtype) {
-          rmcand = bonds[b];
-          MPI_Bcast(&rmcand, 1, MPI_INT, comm->me, world);
-          break;
-        }
-      }
-    }
-
-    if (rmcand == -1) {
-      for (int i = 0; i < atom->nlocal; ++i) {
-        int nbonds = atom->num_bond[i];
-        tagint *bonds = atom->bond_atom[i];
-        int *btypes = atom->bond_type[i];
-        for (int b = nbonds - 1; b >= 0; --b) {
-          if (bonds[b] == map_to_beads(h) && btypes[b] == bridgbtype) {
-            rmcand = atom->tag[i];
-            MPI_Bcast(&rmcand, 1, MPI_INT, comm->me, world);
-            break;
-          }
-        }
-        if (rmcand > 0) break;
-      }
-    }
-
-    if (rmcand > 0) {
-      remove_bond(map_to_beads(h), rmcand);
-      remove_bond(rmcand, map_to_beads(h));  
-    }
-  }
-
-  // if (npatches>=1){
-  //   rm_smc_angle(map_to_beads(h)+1,map_to_beads(h),map_to_beads(a));
-
-  //   rm_smc_angle(map_to_beads(a)+1,map_to_beads(a),map_to_beads(h));
-  // }
+  // Update special neighbors topology
+  update_topology(map_to_beads(h), map_to_beads(a));
 
   // Recoloring patches
   for (int c = 1; c <= npatches; c++)
@@ -1307,4 +1212,131 @@ double FixSMC::compute_array(int i, int flag) {
     if (rflag) return anch[i];
     else return hing[i];
   }
+}
+
+/* ----------------------------------------------------------------------
+   update special neighbors topology for atoms with id1 or id2
+   rebuild special list for each atom that is influenced by id1 or id2
+    influenced atoms are those that have id1 or id2 as a neighbor
+    or have id1 or id2 as a neighbor of a neighbor
+    rebuild_special_one() is called for each influenced atom
+---------------------------------------------------------------------- */
+
+void FixSMC::update_topology(int id1, int id2)
+{
+  int i,j,k,n,influence,influenced,found;
+  tagint *slist;
+
+  tagint *tag = atom->tag;
+  int **nspecial = atom->nspecial;
+  tagint **special = atom->special;
+  int nlocal = atom->nlocal;
+
+  for (i = 0; i < nlocal; i++) {
+    influenced = 0;
+    slist = special[i];
+
+    influence = 0;
+    if (tag[i] == id1 || tag[i] == id2) influence = 1;
+    else {
+      n = nspecial[i][2];
+      found = 0;
+      for (k = 0; k < n; k++)
+        if (slist[k] == id1 || slist[k] == id2) found++;
+      if (found == 2) influence = 1;
+    }
+    if (!influence) continue;
+    influenced = 1;
+  
+    if (influenced) rebuild_special_one(i);
+  
+  }
+
+}
+
+void FixSMC::rebuild_special_one(int m)
+{
+  int i,j,n,n1,cn1,cn2,cn3;
+  tagint *slist;
+
+  tagint *tag = atom->tag;
+  int **nspecial = atom->nspecial;
+  tagint **special = atom->special;
+
+  // existing 1-2 neighs of atom M
+
+  slist = special[m];
+  n1 = nspecial[m][0];
+  cn1 = 0;
+  for (i = 0; i < n1; i++)
+    copy[cn1++] = slist[i];
+
+  // new 1-3 neighs of atom M, based on 1-2 neighs of 1-2 neighs
+  // exclude self
+  // remove duplicates after adding all possible 1-3 neighs
+
+  cn2 = cn1;
+  for (i = 0; i < cn1; i++) {
+    n = atom->map(copy[i]);
+    if (n < 0)
+      error->one(FLERR,"Fix smc needs ghost atoms from further away");
+    slist = special[n];
+    n1 = nspecial[n][0];
+    for (j = 0; j < n1; j++)
+      if (slist[j] != tag[m]) copy[cn2++] = slist[j];
+  }
+
+  cn2 = dedup(cn1,cn2,copy);
+  if (cn2 > atom->maxspecial)
+    error->one(FLERR,"Special list size exceeded in fix bond/create");
+
+  // new 1-4 neighs of atom M, based on 1-2 neighs of 1-3 neighs
+  // exclude self
+  // remove duplicates after adding all possible 1-4 neighs
+
+  cn3 = cn2;
+  for (i = cn1; i < cn2; i++) {
+    n = atom->map(copy[i]);
+    if (n < 0)
+      error->one(FLERR,"Fix smc needs ghost atoms from further away");
+    slist = special[n];
+    n1 = nspecial[n][0];
+    for (j = 0; j < n1; j++)
+      if (slist[j] != tag[m]) copy[cn3++] = slist[j];
+  }
+
+  cn3 = dedup(cn2,cn3,copy);
+  if (cn3 > atom->maxspecial)
+    error->one(FLERR,"Special list size exceeded in fix smc");
+
+  // store new special list with atom M
+
+  nspecial[m][0] = cn1;
+  nspecial[m][1] = cn2;
+  nspecial[m][2] = cn3;
+  memcpy(special[m],copy,cn3*sizeof(int));
+}
+
+/* ----------------------------------------------------------------------
+   remove all ID duplicates in copy from Nstart:Nstop-1
+   compare to all previous values in copy
+   return N decremented by any discarded duplicates
+------------------------------------------------------------------------- */
+
+int FixSMC::dedup(int nstart, int nstop, tagint *copy)
+{
+  int i;
+
+  int m = nstart;
+  while (m < nstop) {
+    for (i = 0; i < m; i++)
+      if (copy[i] == copy[m]) {
+        copy[m] = copy[nstop-1];
+        nstop--;
+        break;
+      }
+    if (i == m) m++;
+  }
+
+  return nstop;
 }

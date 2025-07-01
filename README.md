@@ -5,7 +5,7 @@ The following repository contains code related to the development of a LAMMPS fi
 
 # Repository structure 
 - initfiles: contains sample datafiles to run tests
-- exec: contains sample LAMMPS and bash scripts
+- test: contains sample LAMMPS and bash scripts
 - src: contain source files for fix_smc code
 
 # How to run Fix SMC
