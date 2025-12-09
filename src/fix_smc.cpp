@@ -82,42 +82,64 @@ const char cite_fix_smc[] =
 
 /* ---------------------------------------------------------------------- */
 
+/**
+ * @brief Initializes FixSMC for simulating Structural Maintenance of Chromosomes (SMC) proteins.
+ * 
+ * This constructor sets up a LAMMPS fix for simulating loop extrusion dynamics of SMC proteins
+ * on DNA polymer chains. SMCs bind DNA at two positions (anchor and hinge) and can extrude loops
+ * by moving one or both ends along the polymer. The fix supports multiple initialization modes,
+ * bidirectional/monodirectional movement, probabilistic loading/unloading, and advanced features
+ * like angle constraints and blocked bead types.
+ * 
+ * **Command Arguments** (arg[3:22+]):
+ * - arg[3] (nevery): Update frequency (timesteps between extrusion attempts)
+ * - arg[4] (seed): Random number seed
+ * - arg[5] (prob): Acceptance probability for movements [0-1]
+ * - arg[6] (lpol): Polymer length (beads per polymer)
+ * - arg[7] (solsize): Total number of polymer beads
+ * - arg[8] (poltype): "linear" or "ring" polymer topology
+ * - arg[9] (dirmode): "bo" (bidirectional), "mo1" (anchor fixed), "mo2" (hinge fixed), "mora" (alternating)
+ * - arg[10] (maxdir): Maximum movement distance per step
+ * - arg[11] (smcnum): Number of SMC proteins
+ * - arg[12] (smctype): Atom type for SMC ends
+ * - arg[13] (smcbtype): Bond type for SMCs (after initial placement)
+ * - arg[14] (smcbitype): Bond type for initial SMC placement
+ * - arg[15] (cutoff): Distance cutoff for movement acceptance
+ * - arg[16] (tancoff): Tangent product cutoff for angle constraint
+ * - arg[17] (initmode): "random", "distributed", "full-distributed", or "fixed"
+ * - arg[18] (kon): Loading probability [0-1]
+ * - arg[19] (koff): Unloading probability [0-1]
+ * - arg[20] (npatches): Number of patch atoms per bead
+ * - arg[21] (debug): Enable debug CSV logging (0=off, 1=on)
+ * - arg[22] (fixFname): Filename for initial positions (if initmode=fixed)
+ * - arg[23+] (blockt): List of bead types SMCs cannot bind
+ * 
+ * **Initialization Steps**:
+ * 1. Validate argument count (minimum 19 required)
+ * 2. Parse nevery frequency and integration settings
+ * 3. Parse random seed and movement probability
+ * 4. Parse polymer parameters (length, size, topology)
+ * 5. Parse movement mode and maximum distance
+ * 6. Parse SMC parameters (number, types, bond types)
+ * 7. Parse acceptance criteria (distance and angle cutoffs)
+ * 8. Parse initialization mode and loading/unloading rates
+ * 9. Allocate anchor/hinge position arrays
+ * 10. Initialize based on initmode (random, distributed, or from file)
+ * 11. Allocate availability list and blocked bead type array
+ * 12. Create random number generator with processor-unique seed
+ * 
+ * @param lmp [LAMMPS*] Pointer to LAMMPS instance
+ * @param narg [int] Number of command arguments (minimum 19)
+ * @param arg [char**] Command argument array
+ * @throws "Illegal fix smc command" - Invalid arguments or parameter ranges
+ * @throws "Illegal position of hinge or anchor read from file" - Invalid initial positions
+ * @see FixSMC::post_integrate(), FixSMC::load_smc(), FixSMC::place_smc()
+ */
 FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
   Fix(lmp, narg, arg),
   anch(nullptr), hing(nullptr), smctype(0), smcbtype(0), smcnum(0), debug(0) {
     if (lmp -> citeme) lmp -> citeme -> add(cite_fix_smc);
-    // Number of arguments for the fix. The first three arguments are parsed by Fix base class constructor.
-    // The rest are specific to this fix. 15 are mandatory
-    // 4. nevery: Attempt the jump every nevery iteration
-    // 5. seed: seed for random number draw
-    // 6. prob: probability to accept proposed movement
-    // 7. lpol: length of polymer(s) in solution
-    // 8. solsize: number of atoms belonging to the solution of polymers
-    // 9. poltype: select shape of polymer(s) (either "linear" or "ring")
-    // 10. mmod: movement mode
-        //    1.  "bi": bidirectional movement of maximum size mmod
-        //    2.  "mo1": monodirectional movement of maximum size mmod for the anchor
-        //    3.  "mo2": monodirectional movement of maximum size mmod for the hinge
-        //    4.  "mora": split in half the smcs and assign monodirectional movement in two different directions
-    // 11. msize: movement (maximum) size
-    // 12. smcnum: number of deployed SMCs
-    // 13. smctype: atom type of beads representing SMCs' ends
-    // 14. smcbtype: SMCs' bond type after the first deployment
-    // 15. smcbitype: SMCs' bond type at the first deployment
-    // 16. cutoff: distance cutoff for attempted movements (these are accepted only if distance between new anchor and hinge is below the cutoff)
-    // 17. tancoff: tangent cutoff for attempted movements (these are accepted only if scalar product of the tangents is smaller than this value)
-    // 18. initmode: define initialisation mode of extruders:
-    //    1.  "random": deploys randomly the SMCs
-    //    2.  "distributed": assign at least one SMC per polymer and then distribute remaining randomly
-    //    3.  "full-distributed": distributes evenly SMCs over the polymers
-    //    4.  "fixed": assign SMCs' initial positions according to the filename defined at 23.
-    // 19. kon: probability to load a free extruder every nevery step
-    // 20. koff: probability to unload an extruder every nevery step
-    // 21. npatches: number of patches per bead to recolor (type associated is smctype + 1)
-    // 22. debug: activate debug mode with detailed report on log_fix_smc.txt
-    // 23. fixFname: file containing hinge and anchor position list separated by a space (optional)
-    // 24. blockbeads: type of beads that the extruder cannot grab, can be listed as an arbitrary long list (e.g.: 2 3 4 ...) (optional)
-
+    
     // Check on the number of arguments given to the fix
     if (narg < 19) error -> all(FLERR, "Illegal fix smc command");
 
@@ -301,6 +323,20 @@ FixSMC::FixSMC(LAMMPS * lmp, int narg, char ** arg):
 
 /* ---------------------------------------------------------------------- */
 
+/**
+ * @brief Destructor for FixSMC that deallocates all dynamically allocated memory.
+ * 
+ * **Cleanup Steps**:
+ * 1. Delete random number generator (RanPark)
+ * 2. Delete anchor position array (anch)
+ * 3. Delete hinge position array (hing)
+ * 4. Delete blocked bead type array (blockt)
+ * 5. Delete special list working buffer (copy)
+ * 6. Destroy availability list (av_list) using LAMMPS memory management
+ * 
+ * 
+ * @see FixSMC::FixSMC()
+ */
 FixSMC::~FixSMC() { 
 
   // Deleting pointers
@@ -338,9 +374,87 @@ void FixSMC::init() {
 
 }
 
-/* -------------------------------------------*/
-/*Main extrusion code to run after integration*/
-/*--------------------------------------------*/
+/* ---------------------------------------------------------------------- */
+
+/**
+ * @brief Main SMC loop extrusion engine that drives dynamics and movement every nevery timesteps.
+ * 
+ * This is the core function called after each integration timestep to perform SMC extrusion
+ * dynamics. It handles two phases: initialization (timestep 1) and dynamics (every nevery steps).
+ * During initialization, it loads SMC proteins based on kon probability. During dynamics, it
+ * performs SMC loading/unloading, attempts extrusion movements, validates geometry constraints,
+ * and updates topology.
+ * 
+ * **Phase 1: Initialization (timestep == 1)**:
+ * 1. For each SMC i (0 to smcnum-1):
+ *    - Draw random number (MPI_Bcast from rank 0)
+ *    - If random < kon: Call load_smc(i) to place SMC
+ * 2. Place loaded SMCs with place_smc() using newsmc=true
+ * 3. Debug output for initial placement
+ * 
+ * **Phase 2: Dynamics (every nevery timesteps)**:
+ * 1. Return if maxdir==0 (no movement allowed)
+ * 2. For each SMC i (0 to smcnum-1):
+ *    - **Load/Unload decision**:
+ *      * If unloaded (anch[i]<0 or hing[i]<0):
+ *        - If random < kon: load_smc(i) and place_smc() with newsmc=true
+ *      * If loaded: If random < koff: remove_smc() and mark as unloaded
+ *    - **Skip if unloaded**: Continue to next SMC if not loaded
+ *    - **Movement proposal**:
+ *      * Draw random number; if > prob: reject (debug_post with flag=1)
+ *      * Determine movement directions (hdir, adir) based on dirmode:
+ *        - dirmode=0 (bo): Bidirectional movement
+ *        - dirmode=1 (mo1): Only hinge moves
+ *        - dirmode=2 (mo2): Only anchor moves
+ *        - dirmode=3 (mora): Alternating direction per SMC index
+ *      * Apply random magnitude: hdir, adir ∈ [-(maxdir), +maxdir]
+ *    - **Boundary checks**: Adjust directions if movement exceeds polymer bounds
+ *      * Handle ring vs linear topology differently
+ *      * Zero out blocked directions
+ *    - **Overlap checks**: Verify no collision with other SMCs
+ *      * Skip movement if full overlap detected
+ *      * Reduce movement dimensions if partial overlap
+ *    - **Blocked bead checks**: Verify atoms at new positions not blocked type
+ *      * Use atom->map() to get local indices
+ *      * MPI_Bcast results to all processors
+ *    - **Geometry validation**:
+ *      * compute_xyz(): Get unwrapped coordinates of anchor/hinge beads
+ *      * Calculate distance between new anchor and hinge: dist = |r_anch - r_hing|
+ *      * Calculate tangent product: tan = (old_vec · new_vec) / (|old| |new|)
+ *      * Reject if dist > cutoff
+ *      * Reject if tan < tancoff (angle constraint)
+ *    - **Movement execution** (if all checks pass):
+ *      * remove_smc(): Restore old anchor/hinge types and remove bond
+ *      * Update anch[i] and hing[i] arrays
+ *      * place_smc(): Set new atom types and create bond with newsmc=false
+ * 3. MPI_Barrier after each SMC to synchronize processors
+ * 
+ * **Movement Direction Modes**:
+ * - "bo" (bidirectional): Both ends can move independently
+ * - "mo1" (anchor fixed): Only hinge moves
+ * - "mo2" (hinge fixed): Only anchor moves
+ * - "mora" (alternating): First half of smcs have anchor move, second half have hinge move
+ * 
+ * **Boundary Handling**:
+ * - Linear polymers: Stop movement at boundaries (adir/hdir = 0)
+ * - Ring polymers: Wrap movement 
+ * 
+ * **Error Flags in debug_post()**:
+ * - err1: Movement rejected by probability (rand > prob)
+ * - err2: Collision with other SMC
+ * - err3: Blocked bead type encountered
+ * - err4: Distance constraint violated (dist > cutoff)
+ * - err5: Angle constraint violated (tan < tancoff)
+ * 
+ * **MPI Coordination**:
+ * - MPI_Bcast: Random numbers, loaded SMC positions
+ * - MPI_Allreduce: Global reduction for blocked bead checks
+ * - MPI_Barrier: Synchronize processor states
+ * 
+ * @see FixSMC::load_smc(), FixSMC::place_smc(), FixSMC::remove_smc()
+ * @see FixSMC::compute_xyz(), FixSMC::debug_pre(), FixSMC::debug_post()
+ * @see FixSMC::check_avl(), FixSMC::compile_avl_list()
+ */
 void FixSMC::post_integrate() {
 
   if (update -> ntimestep == 1) {
@@ -624,15 +738,81 @@ void FixSMC::post_integrate() {
 }
 
 /*----------------------------------------------------*/
-/*Map polymer bead index to real simulation bead index*/
-/*----------------------------------------------------*/
+
+/**
+ * @brief Converts logical bead index to actual atom ID accounting for patch atoms.
+ * 
+ * This function maps a logical polymer bead position i (used in SMC code) to the
+ * actual LAMMPS atom ID. Since each bead can have attached patch atoms for visualization,
+ * the mapping accounts for the gap created by patches.
+ * 
+ * **Mapping Formula**:
+ * - atom_id = (i - 1) × (npatches + 1) + 1
+ * - This shifts bead indices by (npatches + 1) positions to account for patch atoms
+ * 
+ * **Example** (npatches=1):
+ * - Logical bead 1 → Atom 1 (main bead)
+ * - Logical bead 2 → Atom 3 (skipping atom 2, which is patch for bead 1)
+ * - Logical bead 3 → Atom 5 (skipping atom 4, which is patch for bead 2)
+ * 
+ * **Special Considerations**:
+ * - Essential for correct SMC positioning when using patch atoms
+ * - npatches determines spacing between logical beads in atom numbering
+ * - Inverse function: logical_i = (atom_id - 1) / (npatches + 1) + 1
+ * 
+ * @param i [long] Logical polymer bead index
+ * @return [long] Actual LAMMPS atom ID
+ * @see FixSMC::place_smc(), FixSMC::remove_smc(), FixSMC::check_avl()
+ */
 long FixSMC::map_to_beads(long i){
   return (i-1)*(npatches+1) + 1;
 }
 
 /*----------------------------------------------------*/
-/*Check if it is possible to place an anchor on bead i*/
-/*----------------------------------------------------*/
+
+/**
+ * @brief Verifies if an anchor can be placed at bead position i (geometric validation).
+ * 
+ * This function checks whether a new SMC anchor can be placed at position i by verifying:
+ * 1. Border conditions are satisfied
+ * 2. No overlap with existing SMC positions (anchor, hinge, or adjacent beads)
+ * 3. No overlap with blocked bead types
+ * 
+ * The function validates based on the anchor-hinge configuration where the hinge would be
+ * placed at i + 2 relative to the anchor.
+ * 
+ * **Validation Steps**:
+ * 1. Calculate hinge position: tmphing = i + 2
+ * 2. Get local atom indices via atom->map():
+ *    - idnewan: New anchor atom
+ *    - idnewhi: New hinge atom
+ *    - idnewmid: Center bead atom
+ * 3. Calculate midpoint: mdbead = (i + tmphing)/2
+ * 4. **Border check**: Return false if:
+ *    - mdbead % lpol == 1 (near start of polymer)
+ *    - mdbead == 1 (very start)
+ *    - mdbead % lpol == 0 (near end of polymer)
+ * 5. **SMC overlap check**: Return false if any existing SMC j occupies:
+ *    - Same anchor/hinge as proposed (i or tmphing)
+ *    - Neighbors of proposed positions (i±1, tmphing±1)
+ * 6. **Blocked bead check**: For each blocked bead type:
+ *    - Check anchor atom type against all blocked types
+ *    - Check hinge atom type against all blocked types
+ *    - Check midpoint atom type against all blocked types
+ *    - MPI_Bcast results to ensure global consistency
+ * 7. Return true if all checks pass
+ * 
+ * **Special Considerations**:
+ * - Used during load_smc() to find valid starting positions
+ * - Enforces minimum spacing from polymer boundaries
+ * - Prevents SMC overlap or stacking
+ * - Avoids binding to forbidden atom types (e.g., crosslinks)
+ * - MPI coordination ensures all processors agree on validity
+ * 
+ * @param i [long] Logical anchor position to test
+ * @return [bool] True if anchor can be placed, false if blocked
+ * @see FixSMC::load_smc(), FixSMC::compile_avl_list(), FixSMC::check_avl()
+ */
 bool FixSMC::check_avl(long i){
   long tmphing;
   long mdbead;
@@ -698,9 +878,54 @@ bool FixSMC::check_avl(long i){
   return 1;
 }
 
-/*------------------------------------------------------*/
-/*Compile a list of available position for SMCs' anchors*/
-/*------------------------------------------------------*/
+/*----------------------------------------------------*/
+
+/**
+ * @brief Compiles a globally synchronized list of available bead positions for SMC loading.
+ * 
+ * This function builds a comprehensive list of all unoccupied bead positions that can
+ * accommodate new SMC proteins. It combines local availability checks with MPI synchronization
+ * to ensure all processors have the same availability information, which is critical for
+ * reproducible SMC loading across parallel simulations.
+ * 
+ * **Algorithm Steps**:
+ * 1. Initialize available positions count: num_avl = 0
+ * 2. Initialize temporary availability array: temp_avl_list[atom->nlocal]
+ * 3. **Compute MPI displacement arrays**:
+ *    - MPI_Allgather to get rcounts: nlocal atoms per processor
+ *    - Calculate displs: cumulative byte offsets for Allgatherv
+ * 4. **Local availability check**:
+ *    - For each bead i from 1 to solsize/(npatches+1):
+ *      * If bead is local (atom->map returns valid index):
+ *        - Call check_avl(i) for geometric validation
+ *        - If valid: add to temp_avl_list, increment temp_num_avl
+ * 5. **Global reduction**: MPI_Allreduce(temp_num_avl, num_avl, SUM)
+ *    - Combines counts from all processors
+ * 6. **Gather availability lists**:
+ *    - MPI_Allgatherv to collect temp_avl_list from all processors
+ *    - Results stored in av_list at offsets specified by displs
+ * 7. **Sort results**: std::sort(av_list, av_list + atom->natoms)
+ *    - Ensures consistent ordering for reproducible random selection
+ * 
+ * **Data Structures**:
+ * - temp_avl_list: Local list of available positions (size: atom->nlocal)
+ * - av_list: Global list of available positions (all processors, size: atom->natoms)
+ * - rcounts: Number of atoms on each processor (size: comm->nprocs)
+ * - displs: Byte offsets for Allgatherv communication (size: comm->nprocs)
+ * 
+ * **MPI Barriers**:
+ * - Called before Allgatherv to ensure all processors reach same synchronization point
+ * 
+ * **Special Considerations**:
+ * - Uses std::fill and std::sort from C++ standard library
+ * - Allocates dynamic array: delete[] temp_avl_list at end
+ * - Called at beginning of load_smc() and every nevery timesteps in post_integrate()
+ * - Result av_list sorted to ensure deterministic random selection
+ * - Performance: O(lpol) for local checks + O(lpol log lpol) for sorting + MPI communication
+ * 
+ * @see FixSMC::check_avl(), FixSMC::load_smc(), FixSMC::post_integrate()
+ * @throws error->all if num_avl == 0 (insufficient space for SMCs)
+ */
 void FixSMC::compile_avl_list(){
   num_avl = 0;
   
@@ -748,9 +973,62 @@ void FixSMC::compile_avl_list(){
   delete[] temp_avl_list;
 }
 
-/*-------------*/
-/*Load i-th SMC*/
-/*-------------*/
+/*----------------------------------------------------*/
+
+/**
+ * @brief Loads (initializes) an SMC protein at a valid position with specified initialization mode.
+ * 
+ * This function creates a new SMC protein by selecting an anchor
+ * position and setting the corresponding hinge position. The selection strategy depends on
+ * the initialization mode (initmode):
+ * - **Mode 1 (distributed)**: One SMC per polymer, placed at random position within polymer
+ * - **Mode 2 (full-distributed)**: SMCs distributed among polymers sequentially
+ * - **Mode 3 (fixed)**: Load from input file (this function returns early)
+ * - **Mode 4 (random)**: Random placement from available positions list
+ * 
+ * **Algorithm Steps**:
+ * 1. **Compile availability list**: Call compile_avl_list() to get all valid positions
+ * 2. **Check polymer count**: npol = solsize / (lpol × (npatches+1))
+ * 3. **Select anchor position** based on initmode:
+ *    - **Mode 1 + i < npol + timestep==1**:
+ *      * Generate random position: anch[i] = random() × lpol + i × lpol
+ *      * Verify validity: loop until check_avl(anch[i]) returns true
+ *      * Ensures one SMC per polymer (first nevery timesteps)
+ *    - **Mode 2 + timestep==1**:
+ *      * Generate position across multiple polymers: anch[i] = random() × lpol + (i%npol) × lpol
+ *      * Verify validity with loop
+ *    - **Mode 3 + timestep==1**: Return early (load from restart file)
+ *    - **Mode 4** (all other cases):
+ *      * Select from available list: anch[i] = av_list[random() × num_avl]
+ *      * Uses pre-compiled list for faster repeated calls
+ * 4. **Validate availability**: Check num_avl > 0, error if no valid positions
+ * 5. **Set hinge position**: hing[i] = anch[i] + 2 (always 2 beads from anchor)
+ * 6. **Broadcast positions**:
+ *    - MPI_Bcast(anch, smcnum, ..., 0, world) to distribute from rank-0
+ *    - MPI_Bcast(hing, smcnum, ..., 0, world) to distribute from rank-0
+ * 7. **Synchronize**: MPI_Barrier ensures all processors have updated SMC data
+ * 
+ * **MPI Coordination**:
+ * - Random number generation happens only on rank-0 (comm->me == 0)
+ * - All processors broadcast values to ensure consistency
+ * - Barriers ensure synchronized state after loading
+ * 
+ * **Hinge Position Rules**:
+ * - Always placed 2 beads away from anchor
+ * - For bidirectional: hing = anch + 2 or anch - 2 (determined by movement)
+ * - Ensures minimum SMC size and prevents overlap
+ * 
+ * **Special Considerations**:
+ * - Called from post_integrate() during loading phase (when random() < kon)
+ * - Only called on rank-0 for actual random selection (other processors receive via Bcast)
+ * - Mode 3 early return: assumes SMCs already loaded from restart file
+ * - Fails if num_avl == 0: all positions occupied or invalid
+ * - Performance: O(check_avl) per attempt in modes 1-2, O(1) in mode 4
+ * 
+ * @param i [long] SMC index to load (0 to nsmc-1)
+ * @see FixSMC::compile_avl_list(), FixSMC::check_avl(), FixSMC::post_integrate()
+ * @throws error->all(FLERR, ...) if num_avl == 0 (insufficient space)
+ */
 void FixSMC::load_smc(long i) {
   compile_avl_list();
 
@@ -792,6 +1070,53 @@ void FixSMC::load_smc(long i) {
   MPI_Barrier(world);
 }
 
+/**
+ * @brief Creates a bond between two atoms and updates the special neighbor list.
+ * 
+ * This function establishes a bond between two atoms
+ * in the simulation. It handles both the bond list storage and the special neighbor list
+ * (1-2, 1-3, 1-4 nearest neighbor relations) which are critical for excluded volume
+ * interactions in LAMMPS.
+ * 
+ * **Algorithm Steps**:
+ * 1. **Map atom tags to local indices**:
+ *    - atom_map1 = atom->map(atom1)
+ *    - atom_map2 = atom->map(atom2)
+ *    - Local indices only valid if in range [0, nlocal)
+ * 2. **Determine bond storage** (Newton's 3rd law symmetry):
+ *    - If newton_bond = false OR atom1 < atom2:
+ *      * Store bond in atom1's bond_atom and bond_type arrays
+ *      * Increment atom1's num_bond counter
+ *      * Increment global atom->nbonds counter
+ *      * Set reneighboring flag for next timestep
+ *    - Otherwise: Bond stored only by atom2 (not both)
+ * 3. **Update special neighbor list** for atom1:
+ *    - Get special list pointers: slist, n1, n2, n3
+ *    - Check if atom2 already in special list (m from n1 to n3)
+ *    - If found: remove duplicate (shift down and decrement counts)
+ *    - If n3 = maxspecial: error (list full)
+ *    - Insert atom2 at position n1 (make it a 1-2 neighbor)
+ *    - Update counts: n1++, n2++, n3++
+ * 4. **Error checking**:
+ *    - Verify num_bond[atom_map1] < bond_per_atom
+ *    - Verify n3 < maxspecial after insertion
+ * 
+ * **Special Considerations**:
+ * - Only operates on local atoms (atom_map1 must be in [0, nlocal))
+ * - Newton's 3rd law pairs handled by force->newton_bond setting
+ * - Triggers reneighboring if new bond created (next_reneighbor = ntimestep)
+ * - Special list must not exceed maxspecial entries
+ * - Duplicate removal prevents re-adding existing bonds
+ * - Used during SMC movement to connect anchor and hinge
+ * - Called twice per movement: once for each direction (1→2 and 2→1)
+ * 
+ * @param atom1 [long] Tag of first atom in bond
+ * @param atom2 [long] Tag of second atom in bond
+ * @param btype [int] Bond type (smcbitype for new SMC, smcbtype for moving SMC)
+ * @see FixSMC::place_smc(), FixSMC::post_integrate(), FixSMC::remove_bond()
+ * @throws error->one if bond exceeds bonds_per_atom limit
+ * @throws error->one if special list exceeds maxspecial limit
+ */
 void FixSMC::create_bond(long atom1, long atom2, int btype){
 
   int atom_map1 = atom->map(atom1);
@@ -851,6 +1176,47 @@ void FixSMC::create_bond(long atom1, long atom2, int btype){
 
 }
 
+/**
+ * @brief Removes a bond between two atoms and updates the special neighbor list.
+ * 
+ * This function breaks a chemical bond (or SMC cohesin connection) between two atoms.
+ * It handles both removal from the bond list and cleanup from the special neighbor list.
+ * Additionally, it manages any bond history information (for bond_history fix) that needs
+ * to be cleaned up.
+ * 
+ * **Algorithm Steps**:
+ * 1. **Identify bond history fixes**:
+ *    - Query modify->get_fix_by_style("BOND_HISTORY") for all history managers
+ *    - n_histories = count of such fixes
+ * 2. **Determine bond storage location** (Newton's 3rd law):
+ *    - If newton_bond = false OR atom1 < atom2:
+ *      * Bond stored in atom1's lists; proceed to deletion
+ *    - Otherwise: Bond stored elsewhere, skip this phase
+ * 3. **Delete bond from atom1** (if applicable):
+ *    - Map atom1 tag to local index
+ *    - Search atom1's bond_atom array for atom2
+ *    - When found at index m:
+ *      * Shift all bonds after m down by one position
+ *      * If bond_history present: shift history data accordingly
+ *      * Decrement num_bond[atom1]
+ *      * Decrement global atom->nbonds
+ *      * Set reneighboring flag: next_reneighbor = ntimestep
+ * 4. **Clean up bond history** (if applicable):
+ *    - After shifting, delete history at position (num_bond-1)
+ *    - Calls FixBondHistory->delete_history() for all history fixes
+ * 5. **Remove atom2 from special neighbor list** of atom1:
+ *    - Get special list pointers: slist, n1, n3
+ *    - Search 1-2 neighbors (m from 0 to n1)
+ *    - When atom2 found at position m:
+ *      * Shift all atoms after m down by one position
+ *      * Decrement all three counts: n1--, n2--, n3--
+ * 6. **Global synchronization**:
+ *    - Triggers reneighboring across all processors
+ *  
+ * @param atom1 [long] Tag of first atom in bond to remove
+ * @param atom2 [long] Tag of second atom in bond to remove
+ * @see FixSMC::remove_smc(), FixSMC::post_integrate(), FixSMC::create_bond()
+*/
 void FixSMC::remove_bond(long atom1, long atom2){
   
   int i,j,k,m,n,i1,i2,n1,n3,type;
@@ -915,9 +1281,60 @@ void FixSMC::remove_bond(long atom1, long atom2){
   }
 }
 
-/*--------------*/
-/*Place SMC anchor and hinge*/
-/*--------------*/
+
+/**
+ * @brief Visually and topologically marks an SMC by changing atom types and creating bonds.
+ * 
+ * This function transitions an SMC from an inactive state to an active state by:
+ * 1. Changing the atom types of anchor and hinge beads (visual coloring for VMD)
+ * 2. Creating bonds between anchor and hinge
+ * 3. Updating the special neighbor list (1-2, 1-3, 1-4 relations)
+ * 4. Recoloring patch atoms with distinct types for visualization
+ * 
+ * The function uses different bond types depending on whether this is a newly loaded SMC
+ * (newsmc=true, uses smcbitype) or a moving SMC (newsmc=false, uses smcbtype).
+ * 
+ * **Algorithm Steps**:
+ * 1. **Map logical positions to local atom indices**:
+ *    - idhi = atom->map(map_to_beads(h)) - Hinge position
+ *    - idan = atom->map(map_to_beads(a)) - Anchor position
+ * 2. **Change anchor type**:
+ *    - If anchor is local (idan in [0, nlocal)):
+ *      * atom->type[idan] = smctype
+ * 3. **Change hinge type**:
+ *    - If hinge is local (idhi in [0, nlocal)):
+ *      * atom->type[idhi] = smctype + 2
+ * 4. **Create anchor-hinge bond**:
+ *    - If newsmc (newly loaded):
+ *      * create_bond(h, a, smcbitype) - Initial SMC bond
+ *      * create_bond(a, h, smcbitype) - Reverse direction
+ *    - Else (moving SMC):
+ *      * create_bond(h, a, smcbtype) - Moving SMC bond
+ *      * create_bond(a, h, smcbtype) - Reverse direction
+ * 5. **Update special neighbor lists**:
+ *    - Call update_topology(h, a) to rebuild 1-2, 1-3, 1-4 lists
+ * 6. **Recolor patch atoms**:
+ *    - For each patch c from 1 to npatches:
+ *      * Anchor patch: type = smctype + 1
+ *      * Hinge patch: type = smctype + 3
+ * 
+ * **Atom Type Encoding**:
+ * - Inactive polymer bead: type = 1
+ * - Active anchor: type = smctype
+ * - Active hinge: type = smctype + 2
+ * - Anchor patch: type = smctype + 1
+ * - Hinge patch: type = smctype + 3
+ * 
+ * **Bond Types**:
+ * - smcbitype: Initial SMC bond (newly loaded SMC)
+ * - smcbtype: Movement bond (moving SMC updating its anchor/hinge)
+ * - Allows tracking when bonds are created vs updated in post-processing
+ * 
+ * @param a [long] Logical anchor bead position
+ * @param h [long] Logical hinge bead position
+ * @param newsmc [bool] True if newly loaded SMC (uses smcbitype), false if moving (uses smcbtype)
+ * @see FixSMC::remove_smc(), FixSMC::create_bond(), FixSMC::update_topology(), FixSMC::post_integrate()
+ */
 void FixSMC::place_smc(long a, long h, bool newsmc) {
   long mhi;
   long man;
@@ -967,9 +1384,56 @@ void FixSMC::place_smc(long a, long h, bool newsmc) {
 
 }
 
-/*--------------*/
-/*Remove SMC anchor and hinge*/
-/*--------------*/
+/**
+ * @brief Restores SMC atoms to polymer state by removing bonds and resetting types.
+ * 
+ * This function transitions an SMC from an active state to an inactive state by:
+ * 1. Resetting anchor and hinge atom types back to inactive polymer (type 1)
+ * 2. Removing bonds between anchor and hinge
+ * 3. Updating the special neighbor list (removing 1-2 relations)
+ * 4. Restoring patch atom types to inactive polymer
+ * 
+ * This is the inverse operation of place_smc() and is called when an SMC unloads
+ * from the polymer during the unloading phase of the SMC dynamics.
+ * 
+ * **Algorithm Steps**:
+ * 1. **Map logical positions to local atom indices**:
+ *    - idhi = atom->map(map_to_beads(h)) - Hinge position
+ *    - idan = atom->map(map_to_beads(a)) - Anchor position
+ * 2. **Reset anchor type**:
+ *    - If anchor is local (idan in [0, nlocal)):
+ *      * atom->type[idan] = 1 (back to polymer)
+ * 3. **Reset hinge type**:
+ *    - If hinge is local (idhi in [0, nlocal)):
+ *      * atom->type[idhi] = 1 (back to polymer)
+ * 4. **Remove anchor-hinge bond**:
+ *    - remove_bond(h, a) - Hinge to anchor
+ *    - remove_bond(a, h) - Anchor to hinge
+ *    - Triggers compaction of bond arrays and special list
+ * 5. **Update special neighbor lists**:
+ *    - Call update_topology(h, a) to rebuild 1-2, 1-3, 1-4 lists
+ * 6. **Reset patch atom types**:
+ *    - For each patch c from 1 to npatches:
+ *      * Anchor patch: type = 1 (back to polymer)
+ *      * Hinge patch: type = 1 (back to polymer)
+ * 
+ * **Type Restoration**:
+ * All atom types return to 1 (inactive polymer bead)
+ * 
+ * **Special Considerations**:
+ * - Inverse of place_smc() function
+ * - Only updates local atoms
+ * - Bond removal triggers special list cleanup via remove_bond()
+ * - Used during SMC unloading (when random() < koff)
+ * - Called from post_integrate() in unloading phase
+ * - Patch restoration helps reduce visualization clutter
+ * - No MPI communication required (type changes are local)
+ * - Must properly clean up bonds before type change to avoid inconsistencies
+ * 
+ * @param a [long] Logical anchor bead position
+ * @param h [long] Logical hinge bead position
+ * @see FixSMC::place_smc(), FixSMC::remove_bond(), FixSMC::update_topology(), FixSMC::post_integrate()
+ */
 void FixSMC::remove_smc(long a, long h) {
   long mhi;
   long man;
@@ -1052,9 +1516,164 @@ std::array<double, 3> FixSMC::compute_xyz(long b){
     return rtxyz;
 }
 
-/*-----------------------*/
-/*Pre change debug print*/
-/*-----------------------*/
+/**
+ * @brief Retrieves the MPI-synchronized, periodic-boundary-unwrapped position of a bead.
+ * 
+ * This function computes the Cartesian coordinates of a polymer bead (identified by its tag b)
+ * across all processors in parallel. It handles the cases where:
+ * 1. The bead is local to the current processor
+ * 2. The bead is on a remote processor (ghost atom)
+ * 3. Periodic boundary conditions have wrapped the bead's coordinates
+ * 
+ * The function uses MPI_Allreduce to gather position information from all processors and
+ * computes an average position (which is correct since only one processor will have the bead
+ * as a local atom).
+ * 
+ * **Algorithm Steps**:
+ * 1. **Initialize arrays**:
+ *    - xyztemp[3] = {0, 0, 0} (local contribution)
+ *    - rtxyz[3] (return value, MPI result)
+ *    - count = 0 (flag if bead is local)
+ *    - counts (global count, should be 1)
+ * 2. **Local check**: If bead tag b maps to local atom:
+ *    - domain->unmap(): Convert wrapped coordinates to unwrapped using image flags
+ *      * Accounts for periodic boundary crossings
+ *      * Computes absolute position: x_abs = x_wrapped + image × box_length
+ *    - Store unwrapped coordinates in xyztemp[3]
+ *    - Set count = 1
+ * 3. **MPI synchronization**: MPI_Barrier to ensure all processors ready
+ * 4. **Global reduction**: 
+ *    - MPI_Allreduce(xyztemp, rtxyz, 3, MPI_DOUBLE, MPI_SUM, world)
+ *    - All processors send their contributions, one processor has valid data
+ *    - MPI_Allreduce(count, counts, 1, MPI_INT, MPI_SUM, world)
+ *    - Sums should equal 1 (bead found on exactly one processor)
+ * 5. **Normalize**: Divide by counts to average (for robustness)
+ *    - If counts > 0: rtxyz[k] /= counts
+ *    - If counts == 0: rtxyz[k] = NAN (bead not found, error condition)
+ * 6. **Return**: Array of three doubles (x, y, z coordinates)
+ * 
+ * **Periodic Boundary Handling**:
+ * - domain->unmap() reconstructs absolute position accounting for box wrapping
+ * - Essential for computing distances across periodic boundaries
+ * - Allows correct distance calculations even when SMC spans box edge
+ * 
+ * **MPI Coordination**:
+ * - Only one processor has bead as local atom (count=1)
+ * - All other processors contribute zeros
+ * - MPI_SUM reduces all zeros + one real position = the position
+ * - Division by counts averages (only matters if counts=1, which it should)
+ * 
+ * **Special Considerations**:
+ * - Expensive operation: barrier + 2 × Allreduce per bead
+ * - Should cache results if same bead queried multiple times
+ * - Used in post_integrate() to compute distances between SMC anchor and hinge
+ * - Used in movement validation to check if proposed movement is within range
+ * - Returns NAN if bead not found (should not happen in correct simulation)
+ * - std::array<double,3> is C++11 feature for fixed-size array
+ * 
+ * @param b [long] Atom tag of the bead to locate
+ * @return [std::array<double,3>] Unwrapped {x, y, z} coordinates, or {NAN, NAN, NAN} if not found
+ * @see FixSMC::post_integrate(), domain->unmap()
+ */
+std::array<double, 3> FixSMC::compute_xyz(long b){
+
+    std::array<double,3> rtxyz, xyztemp;
+
+    int count;
+    int counts;
+
+    double unwrap[3];
+
+    count = 0;
+
+    xyztemp[0] = 0;
+    xyztemp[1] = 0;
+    xyztemp[2] = 0;
+
+    // Computing the distance between the proposed beads' ends using xyz values from different processors
+    if ((atom->map(b) >= 0) && (atom->map(b) < (atom -> nlocal))) {
+      domain -> unmap(atom -> x[atom->map(b)], atom -> image[atom->map(b)], unwrap);
+      xyztemp[0] += unwrap[0];
+      xyztemp[1] += unwrap[1];
+      xyztemp[2] += unwrap[2];
+      count += 1;
+    }
+    
+    //MPI Barrier to avoid computational errors due to value collection
+    MPI_Barrier(world);
+
+    MPI_Allreduce(&xyztemp, &rtxyz, 3, MPI_DOUBLE, MPI_SUM, world);
+    MPI_Allreduce(&count, &counts, 1, MPI_INT, MPI_SUM, world);
+
+    for (int k = 0; k < 3; k++)
+    {
+      if (counts>0) rtxyz[k] /= counts;
+      else rtxyz[k] = NAN;
+    }
+
+    return rtxyz;
+}
+
+/**
+ * @brief Logs SMC anchor and hinge atom types before movement/change (debugging utility).
+ * 
+ * This function writes a debug log entry recording the state of SMC i's anchor and hinge
+ * atoms **before** any modification. It outputs:
+ * - Timestep and processor rank
+ * - SMC index i
+ * - Anchor and hinge bead tags and atom types
+ * 
+ * The function is called before post_integrate() makes changes to SMC structure, allowing
+ * post-processing analysis to track state transitions.
+ * 
+ * **Algorithm Steps**:
+ * 1. **Check debug flag**: Only execute if debug == true
+ * 2. **Map beads to local atoms**:
+ *    - idhi = atom->map(map_to_beads(hing[i]))
+ *    - idan = atom->map(map_to_beads(anch[i]))
+ * 3. **Synchronize output across processors**:
+ *    - For each processor nproc from 0 to nprocs-1:
+ *      * Processor nproc writes if anchor is local (flag1 control)
+ *      * MPI_Bcast(flag1, ..., nproc, world) - synchronize flags
+ *      * All processors call MPI_Barrier
+ *      * Processor nproc writes if hinge is local (flag2 control)
+ *      * MPI_Bcast(flag2, ..., nproc, world) - synchronize flags
+ *      * All processors call MPI_Barrier
+ * 4. **Log format** (comma-separated CSV):
+ *    - Anchor line: timestep,rank,smc_index,anchor_tag,anchor_type,
+ *    - Hinge line (start): hinge_tag,hinge_type,
+ *    - Post-movement continuation: ...see debug_post
+ * 5. **File output**:
+ *    - Opens "log_fix_smc.txt" in append mode
+ *    - Each processor writes only its local data
+ *    - Synchronization ensures no concurrent writes
+ * 
+ * **MPI Synchronization**:
+ * - Strict processor-by-processor logging (nproc=0 then 1, then 2, etc.)
+ * - Barriers prevent concurrent file I/O
+ * - Broadcast flags ensure consistent state checking across MPI processes
+ * 
+ * **CSV Format**:
+ * - Pre-change header (one line split across processes):
+ *   * Timestep, processor rank, SMC index, anchor_tag, anchor_type, hinge_tag, hinge_type, [errors], [distance], [angle]
+ * - Allows parsing with standard CSV tools
+ * - One line per SMC movement per timestep (if debug==true)
+ * 
+ * **Overhead**:
+ * - Multiple MPI barriers (2 × nprocs) per call
+ * - File I/O per processor per call
+ * - Significant slowdown: only use for debugging small systems
+ * 
+ * **Special Considerations**:
+ * - Only called when debug == true (controlled by command-line argument)
+ * - Called at beginning of SMC modification (before place/remove changes)
+ * - Paired with debug_post() to track before/after states
+ * - File grows unbounded (user must manage log file rotation)
+ * - Synchronous MPI barriers required for consistent output order
+ * 
+ * @param i [int] SMC index to log
+ * @see FixSMC::debug_post(), FixSMC::post_integrate()
+ */
 void FixSMC::debug_pre(int i){
 
   if (debug){
@@ -1088,9 +1707,82 @@ void FixSMC::debug_pre(int i){
 
 }
 
-/*-----------------------*/
-/*Post change debug print*/
-/*-----------------------*/
+/**
+ * @brief Logs SMC anchor and hinge atom types after movement/change plus error flags and metrics.
+ * 
+ * This function writes a debug log entry recording the **post-modification** state of SMC i's
+ * anchor and hinge atoms. It is called **after** post_integrate() has modified the SMC structure,
+ * allowing tracking of state transitions and error conditions.
+ * 
+ * **Algorithm Steps**:
+ * 1. **Check debug flag**: Only execute if debug == true
+ * 2. **Map beads to local atoms**:
+ *    - idhi = atom->map(map_to_beads(hing[i]))
+ *    - idan = atom->map(map_to_beads(anch[i]))
+ * 3. **Synchronize output per processor** (same pattern as debug_pre):
+ *    - For each processor nproc from 0 to nprocs-1:
+ *      * Processor nproc logs anchor if local (flag1 control)
+ *      * MPI_Bcast/Barrier synchronization
+ *      * Processor nproc logs hinge + metrics if local (flag2 control)
+ *      * MPI_Bcast/Barrier synchronization
+ * 4. **Log format continuation** from debug_pre:
+ *    - Anchor line: anchor_tag,anchor_type,
+ *    - Hinge + metrics line: hinge_tag,hinge_type,err1,err2,err3,err4,err5,dist,tan\\n
+ * 5. **Error flags** (boolean, written as 0 or 1):
+ *    - err1: Probability rejection (random > kon/koff)
+ *    - err2: Collision with another SMC
+ *    - err3: Blocked bead type encountered
+ *    - err4: Distance too large (SMC too stretched)
+ *    - err5: Angle/tangent constraint violated
+ * 6. **Metrics**:
+ *    - dist: Distance between anchor and hinge (Euclidean)
+ *    - tan: Tangent value (angle dot product or similar metric)
+ *    - NAN values indicate distance could not be computed
+ * 7. **File output**:
+ *    - Continues append to "log_fix_smc.txt"
+ *    - Ends line with std::endl (newline)
+ *    - CSV format complete on newline
+ * 
+ * **CSV Line Format** (complete):
+ * ```
+ * timestep,rank,smc_index,anch_tag,anch_type_pre,hinge_tag,hinge_type_pre,
+ * anch_tag,anch_type_post,hinge_tag,hinge_type_post,err1,err2,err3,err4,err5,dist,tan
+ * ```
+ * 
+ * **Error Analysis in Post-Processing**:
+ * - If all err flags = 0: Movement succeeded (types should differ pre/post)
+ * - If err1 = 1: Movement rejected probabilistically (types unchanged)
+ * - If err2-5 = 1: Movement rejected for physical reasons (types unchanged)
+ * - If dist = NAN: Distance calculation failed (bead not found)
+ * 
+ * **MPI Synchronization**:
+ * - Same strict processor-by-processor pattern as debug_pre
+ * - 2 × nprocs barriers per call
+ * - Ensures file I/O is serialized and consistent
+ * 
+ * **Overhead**:
+ * - Multiple MPI barriers (2 × nprocs) per call
+ * - File I/O and std::endl (flush after every entry)
+ * - Significant slowdown: only use for small systems or occasional timesteps
+ * 
+ * **Special Considerations**:
+ * - Only called when debug == true
+ * - Paired with debug_pre() at start/end of SMC modifications
+ * - Called even if movement fails (to log error reasons)
+ * - std::endl flushes buffer (slow) but ensures data safety
+ * - Log grows unbounded; user must manage rotation
+ * - Error flags allow post-processing to identify rejection reasons
+ * 
+ * @param i [int] SMC index to log
+ * @param err1 [bool] Probability rejection flag
+ * @param err2 [bool] Collision with another SMC flag
+ * @param err3 [bool] Blocked bead type flag
+ * @param err4 [bool] Distance too large flag
+ * @param err5 [bool] Angle/tangent constraint flag
+ * @param dist [double] Distance between anchor and hinge (Euclidean)
+ * @param tan [double] Tangent/angle metric value
+ * @see FixSMC::debug_pre(), FixSMC::post_integrate()
+ */
 void FixSMC::debug_post(int i, bool err1, bool err2, bool err3, bool err4, bool err5, double dist, double tan){
   
   if (debug){
@@ -1122,17 +1814,34 @@ void FixSMC::debug_post(int i, bool err1, bool err2, bool err3, bool err4, bool 
     }
   }
 }
-/*------------------------------------*/
-/*Memory usage of hing and anch arrays*/
-/*------------------------------------*/
+
 double FixSMC::memory_usage() {
   double bytes = 2 * smcnum * sizeof(long) + atom->natoms * sizeof(long);
   return bytes;
 }
 
-/*-------------------------------------------*/
-/*Add restart information in the restart file*/
-/*-------------------------------------------*/
+/*----------------------------------------------------*/
+
+/**
+ * @brief Serializes SMC state to restart file for checkpoint/restart capability.
+ * 
+ * **Restart File Format**:
+ * 1. Size field: int (size in bytes of following data)
+ *    - size = (3 + 2×smcnum) × sizeof(long)
+ * 2. next_reneighbor: long (timestep of next neighbor list rebuild)
+ *    - Critical for proper integration continuation
+ * 3. ntimestep: long (simulation timestep when restart written)
+ *    - Used for validation on restart
+ * 4. smcnum: long (number of SMCs in simulation)
+ *    - Checked against current smcnum on restart
+ * 5. SMC data pairs (one per SMC):
+ *    - anch[i]: long (anchor bead position)
+ *    - hing[i]: long (hinge bead position)
+ *    - Total: 2 × smcnum longs
+ * 
+ * @param fp [FILE*] Open file pointer for restart file (write mode)
+ * @see FixSMC::restart(), LAMMPS restart mechanism
+ */
 void FixSMC::write_restart(FILE * fp) {
 
   int rn = 0;
@@ -1157,9 +1866,47 @@ void FixSMC::write_restart(FILE * fp) {
 
 }
 
-/*---------------------------------------------------*/
-/*Use state info from restart file to restart the Fix*/
-/*---------------------------------------------------*/
+/**
+ * @brief Restores SMC state from restart file after restart/continuation.
+ * 
+ * **Algorithm Steps**:
+ * 1. **Initialize buffer pointer**:
+ *    - rn = 0 (index into buffer)
+ *    - rlist = (long*)buf (cast buffer pointer)
+ * 2. **Read next_reneighbor** (for integration continuity):
+ *    - next_reneighbor = rlist[rn++]
+ *    - Determines when neighbor list will be rebuilt
+ *    - Critical for force/neighbor list consistency
+ * 3. **Validate timestep consistency**:
+ *    - ntimestep_restart = rlist[rn++]
+ *    - Check: ntimestep_restart == update->ntimestep
+ *    - Error if mismatch: "Must not reset timestep when restarting fix smc"
+ *    - Prevents SMC data from being applied to wrong timestep
+ * 4. **Validate SMC count**:
+ *    - smcnum_rest = rlist[rn++]
+ *    - Check: smcnum_rest == smcnum (from input command)
+ *    - Error if mismatch: "Invalid restart, number of SMCs has changed!"
+ *    - Ensures array sizes match (anch[] and hing[] allocation)
+ * 5. **Restore SMC positions**:
+ *    - For i=0 to smcnum-1:
+ *      * anch[i] = rlist[rn++]
+ *      * hing[i] = rlist[rn++]
+ *    - Direct array assignment (no additional initialization)
+ *    - Assumes anch[] and hing[] already allocated
+ * 6. **Activate SMC atoms** (place_smc):
+ *    - For i=0 to smcnum-1:
+ *      * place_smc(anch[i], hing[i], false)
+ *      * false: indicates moving SMC (not newly loaded)
+ *      * Updates atom types, creates bonds, rebuilds topology
+ * 7. **Synchronization**:
+ *    - After loop: MPI_Barrier(world)
+ *    - Ensures all processors have restored state
+ * 
+ * @param buf [char*] Buffer pointer to restart file data (from LAMMPS)
+ * @see FixSMC::write_restart(), FixSMC::place_smc(), LAMMPS restart mechanism
+ * @throws error->all if timestep mismatch with restart file
+ * @throws error->all if SMC count mismatch with restart file
+ */
 void FixSMC::restart(char * buf) {
 
   int rn = 0;

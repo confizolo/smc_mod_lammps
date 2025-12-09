@@ -1,0 +1,110 @@
+include restart.in
+
+####################################
+####    DEF            ####
+####################################
+# Two linear polymers with 10 beads each
+variable pol_length equal 10
+variable pol_count equal 2
+variable total_beads equal ${pol_length}*${pol_count}
+
+
+####################################
+####    SIM PARS        ####
+####################################
+units lj
+atom_style molecular #with stiffness and dihedral (torsion)
+boundary p p p
+neighbor 1.2 bin
+neigh_modify every 1 delay 1 check yes
+
+####################################
+####    ANGLES            ####
+####################################
+angle_style cosine
+
+####################################
+####    NAMES            ####
+####################################
+variable folderRestart index ${outfold}/PPARestart
+shell mkdir ${folderRestart}
+variable simname index ppa${rep}.${time}
+
+restart 5000000 ${folderRestart}/Restart.${simname}
+read_data ${rname}
+
+variable folder index ${outfold}/PPAnoloops_${testname}
+shell mkdir ${folder}
+
+#################################################
+####   DEFINE GROUP TO KEEP FIXED  ####
+#################################################
+variable start1 equal 1
+variable start2 equal ${pol_length}
+
+group startbead id ${start1}:${total_beads}:${pol_length}
+group endbead id ${start2}:${total_beads}:${pol_length}
+group fixedbeads union endbead startbead
+group smcs type 2
+group reg type 1
+group integrate subtract all fixedbeads
+group loops subtract reg fixedbeads
+
+delete_atoms group loops bond yes
+
+set group smcs type 1
+set group all type 1
+####################################
+####     BONDS            ####
+####################################
+bond_style  fene
+special_bonds fene#<=== I M P O R T A N T (new command)
+bond_coeff 1  30.0  1.5 0.0   1.0
+bond_coeff 2  10.0  1.6  0.0   1.0
+bond_coeff 3  30.0  1.7  0.0   1.0
+####################################
+####    ANGLES            ####
+####################################
+angle_style cosine
+angle_coeff 1  0.0   ##backbone stiffness -- naked dna 150bp=20
+
+####################################
+####    PAIR            ####
+####################################
+pair_style    lj/cut 1.12246152962189
+pair_modify shift yes
+pair_coeff        * *  1.0 1.0 1.12246152962189 #backbone
+
+####################################
+####    DUMP            ####
+####################################
+###DAT dump
+dump 2 all custom 500000 ${folder}/${simname}.* id mol type x y z ix iy iz
+
+####################################
+####    THERMO            ####
+####################################
+thermo 10000
+thermo_style custom  step  temp  epair emol vol cpu
+neigh_modify exclude molecule/intra all
+
+####################################
+####    INTEGRATE             ####
+####################################
+fix 1 integrate nve
+
+####################################
+####    FOR PPA            ####
+####################################
+fix 2 integrate langevin 1.0 0.00001 1.0   ${seed}
+
+fix ppafix fixedbeads setforce 0.0 0.0 0.0
+#velocity all set 0 0 0 
+reset_timestep 0
+
+#################
+# SHORT EQ  AFTER CUT
+################
+timestep 0.01
+
+run 500000

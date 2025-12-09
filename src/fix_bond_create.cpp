@@ -12,7 +12,7 @@
    See the README file in the top-level LAMMPS directory.
 ------------------------------------------------------------------------- */
 
-#include "fix_bond_create_bridg.h"
+#include "fix_bond_create.h"
 
 #include "atom.h"
 #include "comm.h"
@@ -39,17 +39,17 @@ static constexpr int DELTA = 16;
 
 /* ---------------------------------------------------------------------- */
 
-FixBondCreateBridg::FixBondCreateBridg(LAMMPS *lmp, int narg, char **arg) :
+FixBondCreate::FixBondCreate(LAMMPS *lmp, int narg, char **arg) :
   Fix(lmp, narg, arg),
   bondcount(nullptr), partner(nullptr), finalpartner(nullptr), distsq(nullptr),
   probability(nullptr), created(nullptr), copy(nullptr), random(nullptr), list(nullptr)
 {
-  if (narg < 8) error->all(FLERR,"Illegal fix bond/create/bridg command");
+  if (narg < 8) error->all(FLERR,"Illegal fix bond/create command");
 
   MPI_Comm_rank(world,&me);
 
   nevery = utils::inumeric(FLERR,arg[3],false,lmp);
-  if (nevery <= 0) error->all(FLERR,"Illegal fix bond/create/bridg command");
+  if (nevery <= 0) error->all(FLERR,"Illegal fix bond/create command");
 
   dynamic_group_allow = 1;
   force_reneighbor = 1;
@@ -66,10 +66,10 @@ FixBondCreateBridg::FixBondCreateBridg(LAMMPS *lmp, int narg, char **arg) :
 
   if (iatomtype < 1 || iatomtype > atom->ntypes ||
       jatomtype < 1 || jatomtype > atom->ntypes)
-    error->all(FLERR,"Invalid atom type in fix bond/create/bridg command");
-  if (cutoff < 0.0) error->all(FLERR,"Illegal fix bond/create/bridg command");
+    error->all(FLERR,"Invalid atom type in fix bond/create command");
+  if (cutoff < 0.0) error->all(FLERR,"Illegal fix bond/create command");
   if (btype < 1 || btype > atom->nbondtypes)
-    error->all(FLERR,"Invalid bond type in fix bond/create/bridg command");
+    error->all(FLERR,"Invalid bond type in fix bond/create command");
 
   cutsq = cutoff*cutoff;
 
@@ -91,71 +91,71 @@ FixBondCreateBridg::FixBondCreateBridg(LAMMPS *lmp, int narg, char **arg) :
   int iarg = 8;
   while (iarg < narg) {
     if (strcmp(arg[iarg],"iparam") == 0) {
-      if (iarg+3 > narg) error->all(FLERR,"Illegal fix bond/create/bridg command");
+      if (iarg+3 > narg) error->all(FLERR,"Illegal fix bond/create command");
       imaxbond = utils::inumeric(FLERR, arg[iarg+1], false, lmp);
       inewtype = utils::expand_type_int(FLERR, arg[iarg+2], Atom::ATOM, lmp);
-      if (imaxbond < 0) error->all(FLERR,"Illegal fix bond/create/bridg command");
+      if (imaxbond < 0) error->all(FLERR,"Illegal fix bond/create command");
       if (inewtype < 1 || inewtype > atom->ntypes)
-        error->all(FLERR,"Invalid atom type in fix bond/create/bridg command");
+        error->all(FLERR,"Invalid atom type in fix bond/create command");
       iarg += 3;
     } else if (strcmp(arg[iarg],"jparam") == 0) {
-      if (iarg+3 > narg) error->all(FLERR,"Illegal fix bond/create/bridg command");
+      if (iarg+3 > narg) error->all(FLERR,"Illegal fix bond/create command");
       jmaxbond = utils::inumeric(FLERR, arg[iarg+1], false, lmp);
       jnewtype = utils::expand_type_int(FLERR, arg[iarg+2], Atom::ATOM, lmp);
-      if (jmaxbond < 0) error->all(FLERR,"Illegal fix bond/create/bridg command");
+      if (jmaxbond < 0) error->all(FLERR,"Illegal fix bond/create command");
       if (jnewtype < 1 || jnewtype > atom->ntypes)
-        error->all(FLERR,"Invalid atom type in fix bond/create/bridg command");
+        error->all(FLERR,"Invalid atom type in fix bond/create command");
       iarg += 3;
     } else if (strcmp(arg[iarg],"prob") == 0) {
-      if (iarg+3 > narg) error->all(FLERR,"Illegal fix bond/create/bridg command");
+      if (iarg+3 > narg) error->all(FLERR,"Illegal fix bond/create command");
       fraction = utils::numeric(FLERR, arg[iarg+1], false, lmp);
       seed = utils::inumeric(FLERR, arg[iarg+2], false, lmp);
       if (fraction < 0.0 || fraction > 1.0)
-        error->all(FLERR,"Illegal fix bond/create/bridg command");
-      if (seed <= 0) error->all(FLERR,"Illegal fix bond/create/bridg command");
+        error->all(FLERR,"Illegal fix bond/create command");
+      if (seed <= 0) error->all(FLERR,"Illegal fix bond/create command");
       iarg += 3;
     } else if (strcmp(arg[iarg],"atype") == 0) {
-      if (iarg+2 > narg) error->all(FLERR,"Illegal fix bond/create/bridg command");
+      if (iarg+2 > narg) error->all(FLERR,"Illegal fix bond/create command");
       atype = utils::expand_type_int(FLERR, arg[iarg+1], Atom::ANGLE, lmp);
-      if (atype < 0) error->all(FLERR,"Illegal fix bond/create/bridg command");
+      if (atype < 0) error->all(FLERR,"Illegal fix bond/create command");
       iarg += 2;
     } else if (strcmp(arg[iarg],"dtype") == 0) {
-      if (iarg+2 > narg) error->all(FLERR,"Illegal fix bond/create/bridg command");
+      if (iarg+2 > narg) error->all(FLERR,"Illegal fix bond/create command");
       dtype = utils::expand_type_int(FLERR, arg[iarg+1], Atom::DIHEDRAL, lmp);
-      if (dtype < 0) error->all(FLERR,"Illegal fix bond/create/bridg command");
+      if (dtype < 0) error->all(FLERR,"Illegal fix bond/create command");
       iarg += 2;
     } else if (strcmp(arg[iarg],"itype") == 0) {
-      if (iarg+2 > narg) error->all(FLERR,"Illegal fix bond/create/bridg command");
+      if (iarg+2 > narg) error->all(FLERR,"Illegal fix bond/create command");
       itype = utils::expand_type_int(FLERR, arg[iarg+1], Atom::IMPROPER, lmp);
-      if (itype < 0) error->all(FLERR,"Illegal fix bond/create/bridg command");
+      if (itype < 0) error->all(FLERR,"Illegal fix bond/create command");
       iarg += 2;
     } else if (strcmp(arg[iarg],"aconstrain") == 0 &&
-        strcmp(style,"bond/create/bridg/angle") == 0) {
+        strcmp(style,"bond/create/angle") == 0) {
       if (iarg+3 > narg)
-          error->all(FLERR,"Illegal fix bond/create/bridg/angle command");
+          error->all(FLERR,"Illegal fix bond/create/angle command");
       amin = utils::numeric(FLERR, arg[iarg+1], false, lmp);
       amax = utils::inumeric(FLERR, arg[iarg+2], false, lmp);
       if (amin  >= amax)
-        error->all(FLERR,"Illegal fix bond/create/bridg/angle command");
+        error->all(FLERR,"Illegal fix bond/create/angle command");
       if (amin < 0 || amin > 180)
-        error->all(FLERR,"Illegal fix bond/create/bridg/angle command");
+        error->all(FLERR,"Illegal fix bond/create/angle command");
       if (amax < 0 || amax > 180)
-        error->all(FLERR,"Illegal fix bond/create/bridg/angle command");
+        error->all(FLERR,"Illegal fix bond/create/angle command");
       amin = (MY_PI/180.0) * amin;
       amax = (MY_PI/180.0) * amax;
       constrainflag = 1;
       iarg += 3;
-    } else error->all(FLERR,"Illegal fix bond/create/bridg command");
+    } else error->all(FLERR,"Illegal fix bond/create command");
   }
 
   // error check
 
   if (atom->molecular != Atom::MOLECULAR)
-    error->all(FLERR,"Cannot use fix bond/create/bridg with non-molecular systems");
+    error->all(FLERR,"Cannot use fix bond/create with non-molecular systems");
   if (iatomtype == jatomtype &&
       ((imaxbond != jmaxbond) || (inewtype != jnewtype)))
     error->all(FLERR,
-               "Inconsistent iparam/jparam values in fix bond/create/bridg command");
+               "Inconsistent iparam/jparam values in fix bond/create command");
 
   // initialize Marsaglia RNG with processor-unique seed
 
@@ -166,7 +166,7 @@ FixBondCreateBridg::FixBondCreateBridg(LAMMPS *lmp, int narg, char **arg) :
   // bondcount values will be initialized in setup()
 
   bondcount = nullptr;
-  FixBondCreateBridg::grow_arrays(atom->nmax);
+  FixBondCreate::grow_arrays(atom->nmax);
   atom->add_callback(Atom::GROW);
   countflag = 0;
 
@@ -202,7 +202,7 @@ FixBondCreateBridg::FixBondCreateBridg(LAMMPS *lmp, int narg, char **arg) :
 
 /* ---------------------------------------------------------------------- */
 
-FixBondCreateBridg::~FixBondCreateBridg()
+FixBondCreate::~FixBondCreate()
 {
   // unregister callbacks to this fix from Atom class
 
@@ -222,7 +222,7 @@ FixBondCreateBridg::~FixBondCreateBridg()
 
 /* ---------------------------------------------------------------------- */
 
-int FixBondCreateBridg::setmask()
+int FixBondCreate::setmask()
 {
   int mask = 0;
   mask |= POST_INTEGRATE;
@@ -232,7 +232,7 @@ int FixBondCreateBridg::setmask()
 
 /* ---------------------------------------------------------------------- */
 
-void FixBondCreateBridg::init()
+void FixBondCreate::init()
 {
   if (utils::strmatch(update->integrate_style,"^respa"))
     nlevels_respa = (dynamic_cast<Respa *>(update->integrate))->nlevels;
@@ -240,19 +240,19 @@ void FixBondCreateBridg::init()
   // check cutoff for iatomtype,jatomtype
 
   if (force->pair == nullptr || cutsq > force->pair->cutsq[iatomtype][jatomtype])
-    error->all(FLERR,"Fix bond/create/bridg cutoff is longer than pairwise cutoff");
+    error->all(FLERR,"Fix bond/create cutoff is longer than pairwise cutoff");
 
-  // warn if more than one fix bond/create/bridg or also a fix bond/break
+  // warn if more than one fix bond/create or also a fix bond/break
   // because this fix stores per-atom state in bondcount
   //   if other fixes create/break bonds, this fix will not know about it
 
   int count = 0;
   for (int i = 0; i < modify->nfix; i++) {
-    if (strcmp(modify->fix[i]->style,"bond/create/bridg") == 0) count++;
+    if (strcmp(modify->fix[i]->style,"bond/create") == 0) count++;
     if (strcmp(modify->fix[i]->style,"bond/break") == 0) count++;
   }
   if (count > 1 && me == 0)
-    error->warning(FLERR,"Fix bond/create/bridg is used multiple times "
+    error->warning(FLERR,"Fix bond/create is used multiple times "
                    " or with fix bond/break - may not work as expected");
 
   // enable angle/dihedral/improper creation if atype/dtype/itype
@@ -261,24 +261,24 @@ void FixBondCreateBridg::init()
   if (atype && force->angle) {
     angleflag = 1;
     if (atype > atom->nangletypes)
-      error->all(FLERR,"Fix bond/create/bridg angle type is invalid");
+      error->all(FLERR,"Fix bond/create angle type is invalid");
   } else angleflag = 0;
 
   if (dtype && force->dihedral) {
     dihedralflag = 1;
     if (dtype > atom->ndihedraltypes)
-      error->all(FLERR,"Fix bond/create/bridg dihedral type is invalid");
+      error->all(FLERR,"Fix bond/create dihedral type is invalid");
   } else dihedralflag = 0;
 
   if (itype && force->improper) {
     improperflag = 1;
     if (itype > atom->nimpropertypes)
-      error->all(FLERR,"Fix bond/create/bridg improper type is invalid");
+      error->all(FLERR,"Fix bond/create improper type is invalid");
   } else improperflag = 0;
 
   if (force->improper) {
     if (force->improper_match("class2") || force->improper_match("ring"))
-      error->all(FLERR,"Cannot yet use fix bond/create/bridg with this "
+      error->all(FLERR,"Cannot yet use fix bond/create with this "
                  "improper style");
   }
 
@@ -290,14 +290,14 @@ void FixBondCreateBridg::init()
 
 /* ---------------------------------------------------------------------- */
 
-void FixBondCreateBridg::init_list(int /*id*/, NeighList *ptr)
+void FixBondCreate::init_list(int /*id*/, NeighList *ptr)
 {
   list = ptr;
 }
 
 /* ---------------------------------------------------------------------- */
 
-void FixBondCreateBridg::setup(int /*vflag*/)
+void FixBondCreate::setup(int /*vflag*/)
 {
   int i,j,m;
 
@@ -329,7 +329,7 @@ void FixBondCreateBridg::setup(int /*vflag*/)
         if (newton_bond) {
           m = atom->map(bond_atom[i][j]);
           if (m < 0)
-            error->one(FLERR,"Fix bond/create/bridg needs ghost atoms "
+            error->one(FLERR,"Fix bond/create needs ghost atoms "
                        "from further away");
           bondcount[m]++;
         }
@@ -344,7 +344,8 @@ void FixBondCreateBridg::setup(int /*vflag*/)
 
 /* ---------------------------------------------------------------------- */
 
-void FixBondCreateBridg::post_integrate()
+void FixBondCreate::post_integrate()
+{
   int i,j,k,m,n,ii,jj,inum,jnum,itype,jtype,n1,n2,n3,possible;
   double xtmp,ytmp,ztmp,delx,dely,delz,rsq;
   int *ilist,*jlist,*numneigh,**firstneigh;
@@ -380,9 +381,9 @@ void FixBondCreateBridg::post_integrate()
     memory->destroy(finalpartner);
     memory->destroy(distsq);
     nmax = atom->nmax;
-    memory->create(partner,nmax,"bond/create/bridg:partner");
-    memory->create(finalpartner,nmax,"bond/create/bridg:finalpartner");
-    memory->create(distsq,nmax,"bond/create/bridg:distsq");
+    memory->create(partner,nmax,"bond/create:partner");
+    memory->create(finalpartner,nmax,"bond/create:finalpartner");
+    memory->create(distsq,nmax,"bond/create:distsq");
     probability = distsq;
   }
 
@@ -450,9 +451,9 @@ void FixBondCreateBridg::post_integrate()
       if (!possible) continue;
 
       // do not allow a duplicate bond to be created
-      // check 1-2, 1-3 or 1-4 neighbors of atom I
+      // check 1-2 neighbors of atom I
 
-      for (k = 0; k < (nspecial[i][0] + nspecial[i][1] + nspecial[i][2]); k++)
+      for (k = 0; k < nspecial[i][0]; k++)
         if (special[i][k] == tag[j]) possible = 0;
       if (!possible) continue;
 
@@ -527,7 +528,7 @@ void FixBondCreateBridg::post_integrate()
 
     if (!newton_bond || tag[i] < tag[j]) {
       if (num_bond[i] == atom->bond_per_atom)
-        error->one(FLERR,"New bond exceeded bonds per atom in fix bond/create/bridg");
+        error->one(FLERR,"New bond exceeded bonds per atom in fix bond/create");
       bond_type[i][num_bond[i]] = btype;
       bond_atom[i][num_bond[i]] = tag[j];
       num_bond[i]++;
@@ -551,7 +552,7 @@ void FixBondCreateBridg::post_integrate()
     }
     if (n3 == atom->maxspecial)
       error->one(FLERR,
-                 "New bond exceeded special list size in fix bond/create/bridg");
+                 "New bond exceeded special list size in fix bond/create");
     for (m = n3; m > n1; m--) slist[m] = slist[m-1];
     slist[n1] = tag[j];
     nspecial[i][0] = n1+1;
@@ -608,7 +609,7 @@ void FixBondCreateBridg::post_integrate()
     if (j < 0 || tag[i] < tag[j]) {
       if (ncreate == maxcreate) {
         maxcreate += DELTA;
-        memory->grow(created,maxcreate,2,"bond/create/bridg:created");
+        memory->grow(created,maxcreate,2,"bond/create:created");
       }
       created[ncreate][0] = tag[i];
       created[ncreate][1] = finalpartner[i];
@@ -630,7 +631,7 @@ void FixBondCreateBridg::post_integrate()
      then 2,3 will be ghosts and 3 will store 4 as its finalpartner
 ------------------------------------------------------------------------- */
 
-void FixBondCreateBridg::check_ghosts()
+void FixBondCreate::check_ghosts()
 {
   int i,j,n;
   tagint *slist;
@@ -650,7 +651,7 @@ void FixBondCreateBridg::check_ghosts()
   int flagall;
   MPI_Allreduce(&flag,&flagall,1,MPI_INT,MPI_SUM,world);
   if (flagall)
-    error->all(FLERR,"Fix bond/create/bridg needs ghost atoms from further away");
+    error->all(FLERR,"Fix bond/create needs ghost atoms from further away");
   lastcheck = update->ntimestep;
 }
 
@@ -665,7 +666,7 @@ void FixBondCreateBridg::check_ghosts()
      check for angles/dihedrals/impropers to create due modified special list
 ------------------------------------------------------------------------- */
 
-void FixBondCreateBridg::update_topology()
+void FixBondCreate::update_topology()
 {
   int i,j,k,n,influence,influenced;
   tagint id1,id2;
@@ -715,7 +716,7 @@ void FixBondCreateBridg::update_topology()
 
   int overflowall;
   MPI_Allreduce(&overflow,&overflowall,1,MPI_INT,MPI_SUM,world);
-  if (overflowall) error->all(FLERR,"Fix bond/create/bridg induced too many "
+  if (overflowall) error->all(FLERR,"Fix bond/create induced too many "
                               "angles/dihedrals/impropers per atom");
 
   int newton_bond = force->newton_bond;
@@ -744,7 +745,7 @@ void FixBondCreateBridg::update_topology()
    affects 1-3 and 1-4 neighs due to other atom's augmented 1-2 neighs
 ------------------------------------------------------------------------- */
 
-void FixBondCreateBridg::rebuild_special_one(int m)
+void FixBondCreate::rebuild_special_one(int m)
 {
   int i,j,n,n1,cn1,cn2,cn3;
   tagint *slist;
@@ -769,7 +770,7 @@ void FixBondCreateBridg::rebuild_special_one(int m)
   for (i = 0; i < cn1; i++) {
     n = atom->map(copy[i]);
     if (n < 0)
-      error->one(FLERR,"Fix bond/create/bridg needs ghost atoms from further away");
+      error->one(FLERR,"Fix bond/create needs ghost atoms from further away");
     slist = special[n];
     n1 = nspecial[n][0];
     for (j = 0; j < n1; j++)
@@ -778,7 +779,7 @@ void FixBondCreateBridg::rebuild_special_one(int m)
 
   cn2 = dedup(cn1,cn2,copy);
   if (cn2 > atom->maxspecial)
-    error->one(FLERR,"Special list size exceeded in fix bond/create/bridg");
+    error->one(FLERR,"Special list size exceeded in fix bond/create");
 
   // new 1-4 neighs of atom M, based on 1-2 neighs of 1-3 neighs
   // exclude self
@@ -788,7 +789,7 @@ void FixBondCreateBridg::rebuild_special_one(int m)
   for (i = cn1; i < cn2; i++) {
     n = atom->map(copy[i]);
     if (n < 0)
-      error->one(FLERR,"Fix bond/create/bridg needs ghost atoms from further away");
+      error->one(FLERR,"Fix bond/create needs ghost atoms from further away");
     slist = special[n];
     n1 = nspecial[n][0];
     for (j = 0; j < n1; j++)
@@ -797,7 +798,7 @@ void FixBondCreateBridg::rebuild_special_one(int m)
 
   cn3 = dedup(cn2,cn3,copy);
   if (cn3 > atom->maxspecial)
-    error->one(FLERR,"Special list size exceeded in fix bond/create/bridg");
+    error->one(FLERR,"Special list size exceeded in fix bond/create");
 
   // store new special list with atom M
 
@@ -815,7 +816,7 @@ void FixBondCreateBridg::rebuild_special_one(int m)
    for newton_bond off, atom M is any of 3 atoms in angle
 ------------------------------------------------------------------------- */
 
-void FixBondCreateBridg::create_angles(int m)
+void FixBondCreate::create_angles(int m)
 {
   int i,j,n,i2local,n1,n2;
   tagint i1,i2,i3;
@@ -882,7 +883,7 @@ void FixBondCreateBridg::create_angles(int m)
     i2 = s1list[i];
     i2local = atom->map(i2);
     if (i2local < 0)
-      error->one(FLERR,"Fix bond/create/bridg needs ghost atoms from further away");
+      error->one(FLERR,"Fix bond/create needs ghost atoms from further away");
     s2list = special[i2local];
     n2 = nspecial[i2local][0];
 
@@ -924,7 +925,7 @@ void FixBondCreateBridg::create_angles(int m)
    for newton_bond off, atom M is any of 4 atoms in dihedral
 ------------------------------------------------------------------------- */
 
-void FixBondCreateBridg::create_dihedrals(int m)
+void FixBondCreate::create_dihedrals(int m)
 {
   int i,j,k,n,i1local,i2local,i3local,n1,n2,n3;
   tagint i1,i2,i3,i4;
@@ -963,7 +964,7 @@ void FixBondCreateBridg::create_dihedrals(int m)
       if (force->newton_bond && i2 > i3) continue;
       i3local = atom->map(i3);
       if (i3local < 0)
-        error->one(FLERR,"Fix bond/create/bridg needs ghost atoms from further away");
+        error->one(FLERR,"Fix bond/create needs ghost atoms from further away");
       s3list = special[i3local];
       n3 = nspecial[i3local][0];
 
@@ -1002,7 +1003,7 @@ void FixBondCreateBridg::create_dihedrals(int m)
     if (force->newton_bond && i2 > i1) continue;
     i1local = atom->map(i1);
     if (i1local < 0)
-      error->one(FLERR,"Fix bond/create/bridg needs ghost atoms from further away");
+      error->one(FLERR,"Fix bond/create needs ghost atoms from further away");
     s3list = special[i1local];
     n3 = nspecial[i1local][0];
 
@@ -1052,7 +1053,7 @@ void FixBondCreateBridg::create_dihedrals(int m)
     i2 = s1list[i];
     i2local = atom->map(i2);
     if (i2local < 0)
-      error->one(FLERR,"Fix bond/create/bridg needs ghost atoms from further away");
+      error->one(FLERR,"Fix bond/create needs ghost atoms from further away");
     s2list = special[i2local];
     n2 = nspecial[i2local][0];
 
@@ -1061,7 +1062,7 @@ void FixBondCreateBridg::create_dihedrals(int m)
       if (i3 == i1) continue;
       i3local = atom->map(i3);
       if (i3local < 0)
-        error->one(FLERR,"Fix bond/create/bridg needs ghost atoms from further away");
+        error->one(FLERR,"Fix bond/create needs ghost atoms from further away");
       s3list = special[i3local];
       n3 = nspecial[i3local][0];
 
@@ -1104,7 +1105,7 @@ void FixBondCreateBridg::create_dihedrals(int m)
    for newton_bond off, atom M is any of 4 atoms in improper
 ------------------------------------------------------------------------- */
 
-void FixBondCreateBridg::create_impropers(int m)
+void FixBondCreate::create_impropers(int m)
 {
   int i,j,k,n,i1local,n1,n2;
   tagint i1,i2,i3,i4;
@@ -1178,7 +1179,7 @@ void FixBondCreateBridg::create_impropers(int m)
     i1 = s2list[i];
     i1local = atom->map(i1);
     if (i1local < 0)
-      error->one(FLERR,"Fix bond/create/bridg needs ghost atoms from further away");
+      error->one(FLERR,"Fix bond/create needs ghost atoms from further away");
     s1list = special[i1local];
     n1 = nspecial[i1local][0];
 
@@ -1223,7 +1224,7 @@ void FixBondCreateBridg::create_impropers(int m)
    return N decremented by any discarded duplicates
 ------------------------------------------------------------------------- */
 
-int FixBondCreateBridg::dedup(int nstart, int nstop, tagint *copy)
+int FixBondCreate::dedup(int nstart, int nstop, tagint *copy)
 {
   int i;
 
@@ -1243,14 +1244,14 @@ int FixBondCreateBridg::dedup(int nstart, int nstop, tagint *copy)
 
 /* ---------------------------------------------------------------------- */
 
-void FixBondCreateBridg::post_integrate_respa(int ilevel, int /*iloop*/)
+void FixBondCreate::post_integrate_respa(int ilevel, int /*iloop*/)
 {
   if (ilevel == nlevels_respa-1) post_integrate();
 }
 
 /* ---------------------------------------------------------------------- */
 
-int FixBondCreateBridg::pack_forward_comm(int n, int *list, double *buf,
+int FixBondCreate::pack_forward_comm(int n, int *list, double *buf,
                                      int /*pbc_flag*/, int * /*pbc*/)
 {
   int i,j,k,m,ns;
@@ -1291,7 +1292,7 @@ int FixBondCreateBridg::pack_forward_comm(int n, int *list, double *buf,
 
 /* ---------------------------------------------------------------------- */
 
-void FixBondCreateBridg::unpack_forward_comm(int n, int first, double *buf)
+void FixBondCreate::unpack_forward_comm(int n, int first, double *buf)
 {
   int i,j,m,ns,last;
 
@@ -1326,7 +1327,7 @@ void FixBondCreateBridg::unpack_forward_comm(int n, int first, double *buf)
 
 /* ---------------------------------------------------------------------- */
 
-int FixBondCreateBridg::pack_reverse_comm(int n, int first, double *buf)
+int FixBondCreate::pack_reverse_comm(int n, int first, double *buf)
 {
   int i,m,last;
 
@@ -1348,7 +1349,7 @@ int FixBondCreateBridg::pack_reverse_comm(int n, int first, double *buf)
 
 /* ---------------------------------------------------------------------- */
 
-void FixBondCreateBridg::unpack_reverse_comm(int n, int *list, double *buf)
+void FixBondCreate::unpack_reverse_comm(int n, int *list, double *buf)
 {
   int i,j,m;
 
@@ -1375,16 +1376,16 @@ void FixBondCreateBridg::unpack_reverse_comm(int n, int *list, double *buf)
    allocate local atom-based arrays
 ------------------------------------------------------------------------- */
 
-void FixBondCreateBridg::grow_arrays(int nmax)
+void FixBondCreate::grow_arrays(int nmax)
 {
-  memory->grow(bondcount,nmax,"bond/create/bridg:bondcount");
+  memory->grow(bondcount,nmax,"bond/create:bondcount");
 }
 
 /* ----------------------------------------------------------------------
    copy values within local atom-based arrays
 ------------------------------------------------------------------------- */
 
-void FixBondCreateBridg::copy_arrays(int i, int j, int /*delflag*/)
+void FixBondCreate::copy_arrays(int i, int j, int /*delflag*/)
 {
   bondcount[j] = bondcount[i];
 }
@@ -1393,7 +1394,7 @@ void FixBondCreateBridg::copy_arrays(int i, int j, int /*delflag*/)
    pack values in local atom-based arrays for exchange with another proc
 ------------------------------------------------------------------------- */
 
-int FixBondCreateBridg::pack_exchange(int i, double *buf)
+int FixBondCreate::pack_exchange(int i, double *buf)
 {
   buf[0] = bondcount[i];
   return 1;
@@ -1403,7 +1404,7 @@ int FixBondCreateBridg::pack_exchange(int i, double *buf)
    unpack values in local atom-based arrays from exchange with another proc
 ------------------------------------------------------------------------- */
 
-int FixBondCreateBridg::unpack_exchange(int nlocal, double *buf)
+int FixBondCreate::unpack_exchange(int nlocal, double *buf)
 {
   bondcount[nlocal] = static_cast<int> (buf[0]);
   return 1;
@@ -1411,7 +1412,7 @@ int FixBondCreateBridg::unpack_exchange(int nlocal, double *buf)
 
 /* ---------------------------------------------------------------------- */
 
-double FixBondCreateBridg::compute_vector(int n)
+double FixBondCreate::compute_vector(int n)
 {
   if (n == 0) return (double) createcount;
   return (double) createcounttotal;
@@ -1421,7 +1422,7 @@ double FixBondCreateBridg::compute_vector(int n)
    memory usage of local atom-based arrays
 ------------------------------------------------------------------------- */
 
-double FixBondCreateBridg::memory_usage()
+double FixBondCreate::memory_usage()
 {
   int nmax = atom->nmax;
   double bytes = (double)nmax * sizeof(int);

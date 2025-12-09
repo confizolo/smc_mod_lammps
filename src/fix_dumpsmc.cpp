@@ -80,15 +80,38 @@ const char cite_fix_dumpsmc[] =
 
 /* ---------------------------------------------------------------------- */
 
+/**
+ * @brief Initializes the FixDUMPSMC fix for periodic dumping of SMC protein positions.
+ * 
+ * This constructor sets up the SMC position dump utility that periodically writes the locations
+ * of SMC anchor and hinge positions to a text file for analysis and visualization. It parses
+ * command-line arguments to configure dumping frequency, number of SMCs, output file path, and
+ * references the parent FixSMC object containing the SMC data.
+ * 
+ * **Constructor Parameters** (after fix name and group):
+ * - arg[3] (nevery): Integer specifying dump frequency (every nevery timesteps)
+ * - arg[4] (nsmc): Number of SMC proteins to track
+ * - arg[5] (dumpfile): Output filename prefix (without extension)
+ * - arg[6] (fixname): Name of the FixSMC fix providing SMC position data
+ * 
+ * **Parsing Steps**:
+ * 1. Register cite information if citation tracking enabled
+ * 2. Validate argument count (must be exactly 7 arguments)
+ * 3. Parse nevery: frequency of dump operations (must be > 0)
+ * 4. Parse nsmc: number of SMCs to dump (must be > 0)
+ * 5. Set restart_global=1 to enable SMC structure in restart file
+ * 6. Store dumpFilestr: output filename (will become "filename.txt")
+ * 7. Allocate and copy connFixName: stores FixSMC name for later retrieval
+ * 
+ * @param lmp [LAMMPS*] Pointer to LAMMPS instance
+ * @param narg [int] Number of command-line arguments (should be 7)
+ * @param arg [char**] Array of command-line arguments
+ * @throws "Illegal fix dumpsmc command" - If narg != 7, nevery <= 0, or nsmc <= 0
+ * @see FixDUMPSMC::init(), FixDUMPSMC::post_integrate()
+ */
 FixDUMPSMC::FixDUMPSMC(LAMMPS * lmp, int narg, char ** arg):
   Fix(lmp, narg, arg), connFix(nullptr){
     if (lmp -> citeme) lmp -> citeme -> add(cite_fix_dumpsmc);
-    // Number of arguments for the fix. The first three arguments are parsed by Fix base class constructor.
-    // The rest are specific to this fix. 7 are mandatory
-    // 4. nevery: Attempt the jump every nevery iteration
-    // 5. nsmc: number of deployed SMCs
-    // 6. dump_filename: name of file to use for dumping
-    // 7. fixname: name of the fix smc deployed in simulation
  
     if ((narg != 7)) error -> all(FLERR, "Illegal fix dumpsmc command");
 
@@ -98,20 +121,16 @@ FixDUMPSMC::FixDUMPSMC(LAMMPS * lmp, int narg, char ** arg):
     nsmc = utils::inumeric(FLERR, arg[4], false, lmp);
     if (nsmc <= 0) error -> all(FLERR, "Illegal fix dumpsmc command");
 
-    // Flag to activate dump in restart file of fix smc structure
     restart_global = 1;
-
-    // Storing dump file name
     dumpFilestr = arg[5];
-
-    // Storing Fix Name to retrieve position from 
     connFixName = new char[static_cast < int > (sizeof(arg[6]) / sizeof(char))];
     std::copy(arg[6], arg[6] + static_cast < int > (sizeof(arg[6]) / sizeof(char)), connFixName);
-    
-  }
+}
 
-/* ---------------------------------------------------------------------- */
-
+/**
+ * @brief Destructor for FixDUMPSMC that cleans up allocated resources.
+ * @see FixDUMPSMC::FixDUMPSMC()
+ */
 FixDUMPSMC::~FixDUMPSMC() {
 }
 
@@ -125,6 +144,17 @@ int FixDUMPSMC::setmask() {
 
 /* ---------------------------------------------------------------------- */
 
+/**
+ * @brief Initializes the dump fix by locating and caching the parent FixSMC pointer.
+ * 
+ * **Initialization Steps**:
+ * 1. Call modify->get_fix_by_id(connFixName) to locate FixSMC by name
+ * 2. Cache returned pointer in connFix member variable
+ * 3. Validate that fix exists: if (!connFix), error "Illegal ausiliary Fix"
+ * 
+ * @see FixDUMPSMC::post_integrate(), FixDUMPSMC::connFix
+ * @throws "Illegal ausiliary Fix" - If FixSMC with name connFixName not found
+ */
 void FixDUMPSMC::init() {
 
   // Store the connected Fix ID pointer
@@ -133,8 +163,43 @@ void FixDUMPSMC::init() {
 }
 
 /* -------------------------------------------*/
-/*Main dump code to run after integration*/
-/*--------------------------------------------*/
+/**
+ * @brief Periodically dumps SMC protein position data to a text file after integration.
+ * 
+ * This function is called after each timestep's integration and handles file I/O to record
+ * SMC positions at specified intervals. It queries the parent FixSMC for current SMC anchor
+ * and hinge positions and writes them to disk in a columnar text format. On the first timestep,
+ * it creates/truncates the dump file; subsequently it appends data at intervals of nevery timesteps.
+ * 
+ * **Algorithm Steps**:
+ * 1. On first timestep (update->ntimestep == 1):
+ *    - Open dump file with truncate flag (erases previous content)
+ *    - Close file immediately (creates empty file for later appending)
+ * 2. Check dump frequency: if (update->ntimestep % nevery) return
+ *    - Skip dumping if current timestep not a multiple of nevery
+ * 3. If this is a dump timestep and processor rank is 0 (comm->me==0):
+ *    - Open dump file in append mode (ios_base::app)
+ *    - For each SMC i (0 to nsmc-1):
+ *      * Query connFix->compute_array(i, 0): Get left end position (anchor)
+ *      * Query connFix->compute_array(i, 1): Get right end position (hinge)
+ *      * Write to file: "timestep  SMC_index  left_position  right_position\n"
+ *    - Close file after all SMCs written
+ * 4. Non-rank-0 processors skip file I/O (prevents concurrent writes)
+ * 
+ * **Output File Format**:
+ * - Filename: "<dumpFilestr>.txt"
+ * - Columns: timestep  SMC_number  left_end_bead_ID  right_end_bead_ID
+ * - One line per SMC per dump timestep
+ * - Space-separated text format (human-readable)
+ * 
+ * **Special Considerations**:
+ * - Only rank-0 processor writes (avoids duplicate data in parallel runs)
+ * - File created on timestep 1 to clear any previous simulation artifacts
+ * - Append mode ensures multiple simulations can append to same file
+ * - SMC indices are 1-indexed in output (i+1 instead of i)
+ * 
+ * @see FixDUMPSMC::init(), FixSMC::compute_array()
+ */
 void FixDUMPSMC::post_integrate() {
 
   // Opening the dump file on first iteration
@@ -158,10 +223,6 @@ void FixDUMPSMC::post_integrate() {
     }
   } 
 }
-
-/* ----------------------------------------------------------------------
-   memory usage 
-------------------------------------------------------------------------- */
 
 double FixDUMPSMC::memory_usage() {
   double bytes = 2 * nsmc * sizeof(long);
