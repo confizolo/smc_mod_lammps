@@ -337,3 +337,6 @@ For issues, questions, or contributions:
 - Verify parameter ranges against algorithms section
 - Test with simple systems before scaling to production runs
 - See function documentation in src/ files for detailed step-by-step explanations
+
+## AI Usage Acknowledgement
+Portions of the code refactoring and documentation in this repository were assisted by Claude Opus 4.5, published by Anthropic. Specifically, this tool was used to assist with generating docstrings and refactoring code. All AI-generated suggestions were independently reviewed, tested, and modified by the author. The author assumes full responsibility for the logic, functionality, and accuracy of the code.
